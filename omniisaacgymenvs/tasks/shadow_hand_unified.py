@@ -11,7 +11,7 @@ from omni.isaac.core.utils.stage import get_current_stage, add_reference_to_stag
 from omniisaacgymenvs.robots.articulations.views.shadow_hand_view import ShadowHandView
 
 import torch
-import wandb
+# import wandb
 from gym import spaces
 import numpy as np
 
@@ -78,8 +78,6 @@ class ShadowHandCustomTask(
         self.dist_reward_scale = self._task_cfg["env"]["distRewardScale"]
         self.rot_reward_scale = self._task_cfg["env"]["rotRewardScale"]
         self.action_penalty_scale = self._task_cfg["env"]["actionPenaltyScale"]
-        # self.success_tolerance = self._task_cfg["env"]["successTolerance"]
-        # self.reach_goal_bonus = self._task_cfg["env"]["reachGoalBonus"]
         self.fall_dist = self._task_cfg["env"]["fallDistance"]
         self.fall_penalty = self._task_cfg["env"]["fallPenalty"]
         self.rot_eps = self._task_cfg["env"]["rotEps"]
@@ -102,10 +100,7 @@ class ShadowHandCustomTask(
         # get end of episode settings
         self.max_episode_length = self._task_cfg["env"]["episodeLength"]
         self.reset_time = self._task_cfg["env"].get("resetTime", -1.0)
-        # self.print_success_stat = self._task_cfg["env"]["printNumSuccesses"]
-        # self.max_consecutive_successes = self._task_cfg["env"][
-        #     "maxConsecutiveSuccesses"
-        # ]
+       
         self.av_factor = self._task_cfg["env"].get("averFactor", 0.1)
 
         self.total_successes = 0
@@ -120,7 +115,7 @@ class ShadowHandCustomTask(
             print("New episode length: ", self.max_episode_length)
         
         # define custom action space
-        self.action_space = spaces.Box(np.ones(self._num_actions) * -10.0, np.ones(self._num_actions) * 10.0)
+        self.action_space = spaces.Box(np.ones(self._num_actions) * -10.0, np.ones(self._num_actions) * 10.0)   # -10 and 10 could be -Inf Inf
 
         # ---------------------------- #
 
@@ -138,16 +133,13 @@ class ShadowHandCustomTask(
             self.num_envs, dtype=torch.long, device=self.device
         )
 
-        # set unit tensors for randomization of object position
+        # set unit tensors for randomization of object position (in the x-y plane)
         self.x_unit_tensor = torch.tensor(
             [1, 0, 0], dtype=torch.float, device=self.device
         ).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor(
             [0, 1, 0], dtype=torch.float, device=self.device
         ).repeat((self.num_envs, 1))
-        # self.z_unit_tensor = torch.tensor(
-        #     [0, 0, 1], dtype=torch.float, device=self.device
-        # ).repeat((self.num_envs, 1))
 
         self.av_factor = torch.tensor(
             self.av_factor, dtype=torch.float, device=self.device
@@ -234,9 +226,7 @@ class ShadowHandCustomTask(
             self.num_hand_dofs, dtype=torch.float, device=self.device
         )
 
-        # set defaut joint effort state TODO check if correct
-        # default_efforts = torch.zeros((1, self.num_hand_dofs), dtype=torch.float, device=self.device)
-        # self._shadow_hands.set_joints_default_state(positions=None, velocities=None, efforts=default_efforts)
+        # set defaut joint effort state
         self.hand_dof_default_eff = torch.zeros(
             self.num_hand_dofs, dtype=torch.float, device=self.device
         )
@@ -608,15 +598,6 @@ class ShadowHandCustomTask(
         dof_vel[env_ids, :] = vel
         self._shadow_hands.set_joint_velocities(dof_vel[env_ids], indices)
 
-        # control targets reset
-        # self.prev_targets[env_ids, :self.num_hand_dofs] = pos
-        # self.cur_targets[env_ids, :self.num_hand_dofs] = pos
-        # self.hand_dof_targets[env_ids, :] = pos
-
-        # self._shadow_hands.set_joint_position_targets(self.hand_dof_targets[env_ids], indices)
-        # self._shadow_hands.set_joint_positions(dof_pos[env_ids], indices)
-        # self._shadow_hands.set_joint_velocities(dof_vel[env_ids], indices)
-
         # TODO: reset hand's joint efforts - check if works
         eff = (
             self.hand_dof_default_eff
@@ -629,9 +610,7 @@ class ShadowHandCustomTask(
             efforts=dof_eff[env_ids], indices=indices, joint_indices=None
         )
 
-        # self.progress_buf[env_ids] = 0
         self.reset_buf[env_ids] = 0
-        # self.successes[env_ids] = 0
 
 
 # TorchScript functions
@@ -639,76 +618,20 @@ class ShadowHandCustomTask(
 
 @torch.jit.script
 def compute_hand_reward(
-    # rew_buf,
     reset_buf,
-    # reset_goal_buf,
-    # progress_buf,
-    # successes,
-    # consecutive_successes,
-    # max_episode_length: float,
     object_pos,
-    # object_rot,
-    # target_pos,
-    # target_rot,
     dist_reward_scale: float,
-    # rot_reward_scale: float,
-    # rot_eps: float,
-    # actions,
-    # action_penalty_scale: float,
-    # success_tolerance: float,
-    # reach_goal_bonus: float,
     fall_dist: float,
-    # fall_penalty: float,
-    # max_consecutive_successes: int,
-    # av_factor: float,
     object_init_pos,
 ):
-    # goal_dist = torch.norm(object_pos - target_pos, p=2, dim=-1)
 
     goal_dist = torch.norm(object_pos - object_init_pos, p=2, dim=-1)
 
-    # Orientation alignment for the cube in hand and goal cube
-    # quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
-    # rot_dist = 2.0 * torch.asin(torch.clamp(torch.norm(quat_diff[:, 1:4], p=2, dim=-1), max=1.0)) # changed quat convention
-
-    # dist_rew = goal_dist * dist_reward_scale
-    # rot_rew = 1.0/(torch.abs(rot_dist) + rot_eps) * rot_reward_scale
-
-    # action_penalty = torch.sum(actions ** 2, dim=-1)
-
-    # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
-    # reward = dist_rew + rot_rew + action_penalty * action_penalty_scale
-
-    # Find out which envs hit the goal and update successes count
-    # goal_resets = torch.where(torch.abs(rot_dist) <= success_tolerance, torch.ones_like(reset_goal_buf), reset_goal_buf)
-    # successes = successes + goal_resets
-
-    # Success bonus: orientation is within `success_tolerance` of goal orientation
-    # reward = torch.where(goal_resets == 1, reward + reach_goal_bonus, reward)
-
-    # Fall penalty: distance to the goal is larger than a threashold
-    # reward = torch.where(goal_dist >= fall_dist, reward + fall_penalty, reward)
-
     # Check env termination conditions, including maximum success number
     resets = torch.where(goal_dist >= fall_dist, torch.ones_like(reset_buf), reset_buf)
-    # if max_consecutive_successes > 0:
-    #     # Reset progress buffer on goal envs if max_consecutive_successes > 0
-    #     progress_buf = torch.where(torch.abs(rot_dist) <= success_tolerance, torch.zeros_like(progress_buf), progress_buf)
-    #     resets = torch.where(successes >= max_consecutive_successes, torch.ones_like(resets), resets)
-    # resets = torch.where(progress_buf >= max_episode_length - 1, torch.ones_like(resets), resets)
-
-    # Apply penalty for not reaching the goal
-    # if max_consecutive_successes > 0:
-    # reward = torch.where(progress_buf >= max_episode_length - 1, reward + 0.5 * fall_penalty, reward)
-
-    # num_resets = torch.sum(resets)
-    # finished_cons_successes = torch.sum(successes * resets.float())
-
-    # cons_successes = torch.where(num_resets > 0, av_factor*finished_cons_successes/num_resets + (1.0 - av_factor)*consecutive_successes, consecutive_successes)
-
+    
     reward = goal_dist * dist_reward_scale
 
-    # return reward, resets, goal_resets, progress_buf, successes, cons_successes
     return reward, resets
 
 
