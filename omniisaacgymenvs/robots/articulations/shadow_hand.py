@@ -40,6 +40,7 @@ from pxr import Usd, UsdGeom, Sdf, Gf, PhysxSchema, UsdPhysics
 
 import omni
 
+
 class ShadowHand(Robot):
     def __init__(
         self,
@@ -51,7 +52,6 @@ class ShadowHand(Robot):
         fingertips=None,
         cs=None,
     ) -> None:
-
         self._usd_path = usd_path
         self._name = name
 
@@ -59,20 +59,31 @@ class ShadowHand(Robot):
             assets_root_path = get_assets_root_path()
             if assets_root_path is None:
                 carb.log_error("Could not find Isaac Sim assets folder")
-            self._usd_path = assets_root_path + "/Isaac/Robots/ShadowHand/shadow_hand_instanceable.usd"
+            self._usd_path = (
+                assets_root_path
+                + "/Isaac/Robots/ShadowHand/shadow_hand_instanceable.usd"
+            )
 
-        self._position = torch.tensor([0.0, 0.0, 0.5]) if translation is None else translation
-        self._orientation = torch.tensor([1.0, 0.0, 0.0, 0.0]) if orientation is None else orientation
-            
+        self._position = (
+            torch.tensor([0.0, 0.0, 0.5]) if translation is None else translation
+        )
+        self._orientation = (
+            torch.tensor([1.0, 0.0, 0.0, 0.0]) if orientation is None else orientation
+        )
+
         # TODO test: let's try to create the contact sensors here
         self.contact_sensors = {}
         for finger_name in fingertips:
-            fingertip_path = prim_path + "/" + finger_name # + "/collisions/" + finger_name[:7] + "C_" + finger_name[7:]
-            self.contact_sensors[finger_name] = FingertipContactSensor(cs, fingertip_path, radius=-1, translation=self._position)
-        
+            fingertip_path = (
+                prim_path + "/" + finger_name
+            )  # + "/collisions/" + finger_name[:7] + "C_" + finger_name[7:]
+            self.contact_sensors[finger_name] = FingertipContactSensor(
+                cs, fingertip_path, radius=-1, translation=self._position
+            )
+
         add_reference_to_stage(self._usd_path, prim_path)
-        
-        # what happens here is closed-source...    
+
+        # what happens here is closed-source...
         super().__init__(
             prim_path=prim_path,
             name=name,
@@ -83,48 +94,50 @@ class ShadowHand(Robot):
 
     def set_shadow_hand_properties(self, stage, shadow_hand_prim):
         for link_prim in shadow_hand_prim.GetChildren():
-            if link_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI): 
+            if link_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI):
                 rb = PhysxSchema.PhysxRigidBodyAPI.Get(stage, link_prim.GetPrimPath())
                 rb.GetDisableGravityAttr().Set(True)
                 rb.GetRetainAccelerationsAttr().Set(True)
 
     def set_motor_control_mode(self, stage, shadow_hand_path):
         joints_config = {
-                         "robot0_WRJ1": {"stiffness": 5, "damping": 0.5, "max_force": 4.785},
-                         "robot0_WRJ0": {"stiffness": 5, "damping": 0.5, "max_force": 2.175},
-                         "robot0_FFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_FFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_FFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
-                         "robot0_MFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_MFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_MFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
-                         "robot0_RFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_RFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_RFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
-                         "robot0_LFJ4": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_LFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_LFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-                         "robot0_LFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
-                         "robot0_THJ4": {"stiffness": 1, "damping": 0.1, "max_force": 2.3722},
-                         "robot0_THJ3": {"stiffness": 1, "damping": 0.1, "max_force": 1.45},
-                         "robot0_THJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.99},
-                         "robot0_THJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.99},
-                         "robot0_THJ0": {"stiffness": 1, "damping": 0.1, "max_force": 0.81},
-                        }
+            "robot0_WRJ1": {"stiffness": 5, "damping": 0.5, "max_force": 4.785},
+            "robot0_WRJ0": {"stiffness": 5, "damping": 0.5, "max_force": 2.175},
+            "robot0_FFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_FFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_FFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+            "robot0_MFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_MFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_MFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+            "robot0_RFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_RFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_RFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+            "robot0_LFJ4": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_LFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_LFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+            "robot0_LFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+            "robot0_THJ4": {"stiffness": 1, "damping": 0.1, "max_force": 2.3722},
+            "robot0_THJ3": {"stiffness": 1, "damping": 0.1, "max_force": 1.45},
+            "robot0_THJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.99},
+            "robot0_THJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.99},
+            "robot0_THJ0": {"stiffness": 1, "damping": 0.1, "max_force": 0.81},
+        }
 
         for joint_name, config in joints_config.items():
             set_drive(
-                f"{self.prim_path}/joints/{joint_name}", 
-                "angular", 
-                "position", 
-                0.0, 
-                config["stiffness"]*np.pi/180, 
-                config["damping"]*np.pi/180, 
-                config["max_force"]
+                f"{self.prim_path}/joints/{joint_name}",
+                "angular",
+                "position",
+                0.0,
+                config["stiffness"] * np.pi / 180,
+                config["damping"] * np.pi / 180,
+                config["max_force"],
             )
 
 
 from pxr import Gf
+
+
 class FingertipContactSensor:
     def __init__(
         self,
@@ -165,7 +178,6 @@ class FingertipContactSensor:
             _type_: _description_
         """
 
-        
         result, self.sensor = omni.kit.commands.execute(
             "IsaacSensorCreateContactSensor",
             path="/contact_sensor",
@@ -180,10 +192,10 @@ class FingertipContactSensor:
             visualize=self._visualize,
         )
         self._sensor_path = self._prim_path + "/contact_sensor"
-        
+
     def get_data(self):
         """_summary_"""
-        
+
         raw_data = self._cs.get_contact_sensor_raw_data(self._sensor_path)
         reading = self._cs.get_sensor_sim_reading(self._sensor_path)
 
@@ -216,4 +228,3 @@ class FingertipContactSensor:
             reading_ts,
             sim_ts,
         )
-

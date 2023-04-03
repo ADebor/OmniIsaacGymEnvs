@@ -22,6 +22,7 @@ import warnings
 # create sensor visual material
 # from omni.isaac.core.materials import OmniPBR, PreviewSurface
 
+
 class ShadowHandCustomTask(
     RLTask  # RLTask contains rl_games-specific config parameters and buffers
 ):
@@ -154,7 +155,7 @@ class ShadowHandCustomTask(
         )
 
         # self.fingertip_prim_path = "/World/envs/.*/shadow_hand/"
-        self.fingertip_prim_path = self.default_zero_env_path + "/shadow_hand/" 
+        self.fingertip_prim_path = self.default_zero_env_path + "/shadow_hand/"
 
     def set_up_scene(self, scene, replicate_physics=True) -> None:
         """
@@ -166,7 +167,7 @@ class ShadowHandCustomTask(
         """
 
         self._cs = _sensor.acquire_contact_sensor_interface()
-        
+
         # get USD stage, assets path and initialization params
         self._stage = get_current_stage()
         self._assets_root_path = get_assets_root_path()
@@ -458,9 +459,8 @@ class ShadowHandCustomTask(
         #     )
         # )
 
-    def get_tactile_observations(self): # TODO to be tested
-        """_summary_
-        """
+    def get_tactile_observations(self):  # TODO to be tested
+        """_summary_"""
         pass
         # TODO: of course this does not work, because we only look at one hand (the Shadowhand instance created (and then cloned))!
         # exit(self._shadow_hands.prim_paths)
@@ -486,7 +486,7 @@ class ShadowHandCustomTask(
         #         reading_ts,
         #         sim_ts,
         #     ) = sensor.get_data()
-            
+
         #     print(
         #         "-- TEST: Fingertip sensor: {} --\n".format(sensor_name)
         #         + "force: {} \n ".format(force_val)
@@ -497,7 +497,7 @@ class ShadowHandCustomTask(
         #     )
 
         return
-    
+
         for sensor_name, sensor in self.contact_sensors.items():
             (
                 force_val,
@@ -544,15 +544,15 @@ class ShadowHandCustomTask(
         hand_start_orientation = torch.tensor(
             [0.0, 0.0, -0.70711, 0.70711], device=self.device
         )
-        
+
         # create ShadowHand object and set it at initial pose
         self.shadow_hand = ShadowHand(
             prim_path=self.default_zero_env_path + "/shadow_hand",
             name="shadow_hand",
             translation=hand_start_translation,
             orientation=hand_start_orientation,
-            fingertips=self.fingertips,    #TODO test
-            cs=self._cs,    # TODO test
+            fingertips=self.fingertips,  # TODO test
+            cs=self._cs,  # TODO test
         )
 
         # apply articulation settings to Shadow hand
@@ -700,6 +700,7 @@ class ShadowHandCustomTask(
 
         self.reset_buf[env_ids] = 0
 
+
 # class FingertipContactSensor:
 #     def __init__(
 #         self,
@@ -749,7 +750,7 @@ class ShadowHandCustomTask(
 #             # translation=self._offset,
 #             visualize=self._visualize,
 #         )
-        
+
 #         # sensor = ContactSensor(
 #         #   prim_path=self._prim_path + "/contact_sensor",
 #         #   name="contact_sensor_" + self._name,
@@ -760,7 +761,7 @@ class ShadowHandCustomTask(
 #         # sensor.set_visibility(True)
 #         # self.scene.add(
 #         # sensor)
-        
+
 #         # material = OmniPBR(prim_path=self._prim_path, color=np.array([1.0, 0.0, 0.0]))
 #         # sensor.apply_visual_material(visual_material=material, weaker_than_descendants=False)
 #         # mtl_created_list = []
