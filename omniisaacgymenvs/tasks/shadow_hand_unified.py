@@ -1,4 +1,6 @@
+import omni
 import omni.replicator.isaac as dr
+from omni.isaac.sensor import _sensor
 from omni.isaac.core.utils.torch import *
 from omni.isaac.gym.vec_env import VecEnvBase
 from omniisaacgymenvs.tasks.base.rl_task import RLTask
@@ -11,10 +13,14 @@ from omni.isaac.core.utils.stage import get_current_stage, add_reference_to_stag
 from omniisaacgymenvs.robots.articulations.views.shadow_hand_view import ShadowHandView
 
 import torch
+
 # import wandb
 from gym import spaces
 import numpy as np
+import warnings
 
+# create sensor visual material
+# from omni.isaac.core.materials import OmniPBR, PreviewSurface
 
 class ShadowHandCustomTask(
     RLTask  # RLTask contains rl_games-specific config parameters and buffers
@@ -45,11 +51,11 @@ class ShadowHandCustomTask(
 
         # get fingertips info
         self.fingertips = [
-            "robot0:ffdistal",
-            "robot0:mfdistal",
-            "robot0:rfdistal",
-            "robot0:lfdistal",
-            "robot0:thdistal",
+            "robot0_ffdistal",
+            "robot0_mfdistal",
+            "robot0_rfdistal",
+            "robot0_lfdistal",
+            "robot0_thdistal",
         ]
         self.num_fingertips = len(self.fingertips)
 
@@ -100,7 +106,7 @@ class ShadowHandCustomTask(
         # get end of episode settings
         self.max_episode_length = self._task_cfg["env"]["episodeLength"]
         self.reset_time = self._task_cfg["env"].get("resetTime", -1.0)
-       
+
         self.av_factor = self._task_cfg["env"].get("averFactor", 0.1)
 
         self.total_successes = 0
@@ -113,9 +119,11 @@ class ShadowHandCustomTask(
             )
             print("Reset time: ", self.reset_time)
             print("New episode length: ", self.max_episode_length)
-        
+
         # define custom action space
-        self.action_space = spaces.Box(np.ones(self._num_actions) * -10.0, np.ones(self._num_actions) * 10.0)   # -10 and 10 could be -Inf Inf
+        self.action_space = spaces.Box(
+            np.ones(self._num_actions) * -10.0, np.ones(self._num_actions) * 10.0
+        )  # -10 and 10 could be -Inf Inf
 
         # ---------------------------- #
 
@@ -145,6 +153,9 @@ class ShadowHandCustomTask(
             self.av_factor, dtype=torch.float, device=self.device
         )
 
+        # self.fingertip_prim_path = "/World/envs/.*/shadow_hand/"
+        self.fingertip_prim_path = self.default_zero_env_path + "/shadow_hand/" 
+
     def set_up_scene(self, scene, replicate_physics=True) -> None:
         """
         Implements environment setup.
@@ -153,11 +164,27 @@ class ShadowHandCustomTask(
             scene (Scene): Scene to add robot view.
             replicate_physics (bool, optional): _description_. Defaults to True.
         """
+
+        self._cs = _sensor.acquire_contact_sensor_interface()
+        
         # get USD stage, assets path and initialization params
         self._stage = get_current_stage()
         self._assets_root_path = get_assets_root_path()
+
+        # get shadow hand
         hand_start_translation, pose_dy, pose_dz = self.get_hand()
+
+        # get manipulated object
         self.get_object(hand_start_translation, pose_dy, pose_dz)
+
+        # add contact sensors on the fingertips
+        # self._cs = _sensor.acquire_contact_sensor_interface()
+        # self.contact_sensors = {}  # use a dict for named access (if needed)
+        # for finger_name in self.fingertips:
+        #     fingertip_path = self.fingertip_prim_path + finger_name + "/collisions"
+        #     self.contact_sensors[finger_name] = FingertipContactSensor(
+        #         self._cs, fingertip_path, radius=0.01, scene=scene, name=finger_name,
+        #     )
 
         replicate_physics = False if self._dr_randomizer.randomize else True
         super().set_up_scene(
@@ -200,7 +227,7 @@ class ShadowHandCustomTask(
 
         # check effort mode
         print("Shadow hand effort modes: ", self._shadow_hands.get_effort_modes())
-        
+
         # get dof position limits of the shadow hand
         dof_limits = self._shadow_hands.get_dof_limits()
         self.hand_dof_pos_lower_limits, self.hand_dof_pos_upper_limits = torch.t(
@@ -289,7 +316,7 @@ class ShadowHandCustomTask(
             dr.physics_view.step_randomization(rand_env_ids)
             self.randomization_buf[rand_env_ids] = 0
 
-        print("Efforts/Actions: \n {} \n".format(self.efforts))
+        # print("Efforts/Actions: \n {} \n".format(self.efforts))
         # # wandb logging
         # wandb.log(
         #     {
@@ -389,6 +416,8 @@ class ShadowHandCustomTask(
 
         self.obs_buf_offset += 65
 
+        # print("\n\n\n\ncontact force matrix: ", self._shadow_hands._fingers.get_net_contact_forces(dt=1.0))
+
     def get_dof_observations(self):
         # get data
         self.hand_dof_pos = self._shadow_hands.get_joint_positions(clone=False)
@@ -423,14 +452,71 @@ class ShadowHandCustomTask(
         )
 
         self.obs_buf_offset += 3 * self.num_hand_dofs
-        print(
-            "observation buffer: \n {} \nof size: {}.".format(
-                self.obs_buf, self.obs_buf.size()
-            )
-        )
+        # print(
+        #     "observation buffer: \n {} \nof size: {}.".format(
+        #         self.obs_buf, self.obs_buf.size()
+        #     )
+        # )
 
-    def get_tactile_observations(self):
-        pass  # TODO
+    def get_tactile_observations(self): # TODO to be tested
+        """_summary_
+        """
+        pass
+        # TODO: of course this does not work, because we only look at one hand (the Shadowhand instance created (and then cloned))!
+        # exit(self._shadow_hands.prim_paths)
+        # print(self._shadow_hands.contact_sensors)
+
+        for prim_path in self._shadow_hands.prim_paths:
+            for finger_name in self.fingertips:
+                sensor_path = prim_path + "/" + finger_name + "/contact_sensor"
+                data = self._cs.get_contact_sensor_raw_data(sensor_path)
+                print("data from ", finger_name, ":")
+                print(data)
+                print("from prim path: ", prim_path)
+
+        # for sensor_name, sensor in self.shadow_hand.contact_sensors.items():
+        #     print("sensor ", sensor, "is a contact sensor: ", self._cs.is_contact_sensor(sensor._prim_path + "/contact_sensor"))
+        #     (
+        #         force_val,
+        #         direction,
+        #         impulses,
+        #         dts,
+        #         normals,
+        #         positions,
+        #         reading_ts,
+        #         sim_ts,
+        #     ) = sensor.get_data()
+            
+        #     print(
+        #         "-- TEST: Fingertip sensor: {} --\n".format(sensor_name)
+        #         + "force: {} \n ".format(force_val)
+        #         + "direction: {} \n ".format(direction)
+        #         + "from normals: {} \n ".format(normals)
+        #         + "reading time: {} \n ".format(reading_ts)
+        #         + "sim time: {} \n".format(sim_ts)
+        #     )
+
+        return
+    
+        for sensor_name, sensor in self.contact_sensors.items():
+            (
+                force_val,
+                direction,
+                impulses,
+                dts,
+                normals,
+                positions,
+                reading_ts,
+                sim_ts,
+            ) = sensor.get_data()
+            print(
+                "-- Fingertip sensor: {} --\n".format(sensor_name)
+                + "force: {} \n ".format(force_val)
+                + "direction: {} \n ".format(direction)
+                + "from normals: {} \n ".format(normals)
+                + "reading time: {} \n ".format(reading_ts)
+                + "sim time: {} \n".format(sim_ts)
+            )
 
     def calculate_metrics(self) -> None:
         """
@@ -458,30 +544,32 @@ class ShadowHandCustomTask(
         hand_start_orientation = torch.tensor(
             [0.0, 0.0, -0.70711, 0.70711], device=self.device
         )
-
+        
         # create ShadowHand object and set it at initial pose
-        shadow_hand = ShadowHand(
+        self.shadow_hand = ShadowHand(
             prim_path=self.default_zero_env_path + "/shadow_hand",
             name="shadow_hand",
             translation=hand_start_translation,
             orientation=hand_start_orientation,
+            fingertips=self.fingertips,    #TODO test
+            cs=self._cs,    # TODO test
         )
 
         # apply articulation settings to Shadow hand
         self._sim_config.apply_articulation_settings(
             "shadow_hand",
-            get_prim_at_path(shadow_hand.prim_path),
+            get_prim_at_path(self.shadow_hand.prim_path),
             self._sim_config.parse_actor_config("shadow_hand"),
         )
 
         # set Shadow hand properties
-        shadow_hand.set_shadow_hand_properties(
-            stage=self._stage, shadow_hand_prim=shadow_hand.prim
+        self.shadow_hand.set_shadow_hand_properties(
+            stage=self._stage, shadow_hand_prim=self.shadow_hand.prim
         )
 
         # set motor control mode for the Shadow hand TODO: I don't know how this works exactly - set position target control...
-        shadow_hand.set_motor_control_mode(
-            stage=self._stage, shadow_hand_path=shadow_hand.prim_path
+        self.shadow_hand.set_motor_control_mode(
+            stage=self._stage, shadow_hand_path=self.shadow_hand.prim_path
         )
 
         # set offset of the object to be manipulated (TODO: why here?)
@@ -495,7 +583,7 @@ class ShadowHandCustomTask(
             prim_paths_expr="/World/envs/.*/shadow_hand", name="shadow_hand_view"
         )
 
-        # add the view's fingers to the scene
+        # add the view of the fingers to the scene
         scene.add(hand_view._fingers)
 
         return hand_view
@@ -612,6 +700,120 @@ class ShadowHandCustomTask(
 
         self.reset_buf[env_ids] = 0
 
+# class FingertipContactSensor:
+#     def __init__(
+#         self,
+#         cs,
+#         prim_path,
+#         scene,
+#         name,
+#         radius=-1,
+#         offset=[0, 0, 0],
+#         color=(1.0, 0.2, 0.1, 1.0),
+#         visualize=True,
+#     ):
+#         self._cs = cs
+#         self._prim_path = prim_path
+#         self._name = str(name)
+#         # self._sensor_path = self._prim_path + "/" + self._name
+#         self._radius = radius
+#         self._offset = offset
+#         self._color = color
+#         self._visualize = visualize
+#         self.scene = scene
+#         self.set_force_sensor()
+
+#     def set_force_sensor(
+#         self,
+#     ):
+#         """
+#         Sets force sensor on specified prim.
+
+#         Args:
+#             prim_path (_type_): _description_
+#             radius (int, optional): _description_. Defaults to -1.
+#             offset (list, optional): _description_. Defaults to [0, 0, 0].
+
+#         Returns:
+#             _type_: _description_
+#         """
+#         result, sensor = omni.kit.commands.execute(
+#             "IsaacSensorCreateContactSensor",
+#             path="/contact_sensor",
+#             parent=self._prim_path,
+#             min_threshold=0,
+#             max_threshold=10000000,
+#             radius=self._radius,
+#             color=self._color,
+#             sensor_period=-1,
+#             # translation=self._offset,
+#             visualize=self._visualize,
+#         )
+        
+#         # sensor = ContactSensor(
+#         #   prim_path=self._prim_path + "/contact_sensor",
+#         #   name="contact_sensor_" + self._name,
+#         #   min_threshold=0,
+#         #   max_threshold=10000000,
+#         #   radius=0.01,
+#         # )
+#         # sensor.set_visibility(True)
+#         # self.scene.add(
+#         # sensor)
+        
+#         # material = OmniPBR(prim_path=self._prim_path, color=np.array([1.0, 0.0, 0.0]))
+#         # sensor.apply_visual_material(visual_material=material, weaker_than_descendants=False)
+#         # mtl_created_list = []
+#         # omni.kit.commands.execute(
+#         #     "CreateAndBindMdlMaterialFromLibrary",
+#         #     mdl_name="UsdPreviewSurface.mdl",
+#         #     mtl_name="UsdPreviewSurface",
+#         #     mtl_created_list=mtl_created_list,
+#         # )
+#         # from pxr import Gf, UsdShade, Sdf
+#         # stage = omni.usd.get_context().get_stage()
+#         # mtl_prim = stage.GetPrimAtPath(mtl_created_list[0])
+#         # omni.usd.create_material_input(mtl_prim, "diffuse_reflection_color", Gf.Vec3f(1, 0, 0), Sdf.ValueTypeNames.Color3f)
+#         # shade = UsdShade.Material(mtl_prim)
+#         # sensor = stage.GetPrimAtPath(self._prim_path + "/contact_sensor")
+#         # UsdShade.MaterialBindingAPI(sensor).Bind(shade, UsdShade.Tokens.strongerThanDescendants)
+
+#     def get_data(self):
+#         """_summary_"""
+
+#         raw_data = self._cs.get_contact_sensor_raw_data(self._prim_path)
+#         reading = self._cs.get_sensor_sim_reading(self._prim_path)
+
+#         force_val = reading.value
+#         normals = np.array(
+#             [[x, y, z] for (x, y, z) in raw_data["normal"]]
+#         )  # global coordinates
+
+#         if reading.inContact:
+#             # get global force direction vector
+#             direction = np.sum(normals, axis=0)
+#             direction = direction / np.linalg.norm(direction)
+
+#         else:
+#             direction = [0, 0, 0]
+
+#         positions = raw_data["position"]  # global coordinates TODO compute local ones
+#         impulses = raw_data["impulse"]  # global coordinates
+#         dts = raw_data["dt"]
+#         reading_ts = reading.time  # TODO use timestamps for log
+#         sim_ts = raw_data["time"]
+
+#         return (
+#             force_val,
+#             direction,
+#             impulses,
+#             dts,
+#             normals,
+#             positions,
+#             reading_ts,
+#             sim_ts,
+#         )
+
 
 # TorchScript functions
 
@@ -624,12 +826,11 @@ def compute_hand_reward(
     fall_dist: float,
     object_init_pos,
 ):
-
     goal_dist = torch.norm(object_pos - object_init_pos, p=2, dim=-1)
 
     # Check env termination conditions, including maximum success number
     resets = torch.where(goal_dist >= fall_dist, torch.ones_like(reset_buf), reset_buf)
-    
+
     reward = goal_dist * dist_reward_scale
 
     return reward, resets
