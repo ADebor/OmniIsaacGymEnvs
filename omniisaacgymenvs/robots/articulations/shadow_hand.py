@@ -38,6 +38,7 @@ from omniisaacgymenvs.tasks.utils.usd_utils import set_drive
 import carb
 from pxr import Usd, UsdGeom, Sdf, Gf, PhysxSchema, UsdPhysics
 
+import omni
 
 class ShadowHand(Robot):
     def __init__(
@@ -47,6 +48,8 @@ class ShadowHand(Robot):
         usd_path: Optional[str] = None,
         translation: Optional[torch.tensor] = None,
         orientation: Optional[torch.tensor] = None,
+        fingertips=None,
+        cs=None,
     ) -> None:
 
         self._usd_path = usd_path
@@ -61,8 +64,15 @@ class ShadowHand(Robot):
         self._position = torch.tensor([0.0, 0.0, 0.5]) if translation is None else translation
         self._orientation = torch.tensor([1.0, 0.0, 0.0, 0.0]) if orientation is None else orientation
             
+        # TODO test: let's try to create the contact sensors here
+        self.contact_sensors = {}
+        for finger_name in fingertips:
+            fingertip_path = prim_path + "/" + finger_name # + "/collisions/" + finger_name[:7] + "C_" + finger_name[7:]
+            self.contact_sensors[finger_name] = FingertipContactSensor(cs, fingertip_path, radius=-1, translation=self._position)
+        
         add_reference_to_stage(self._usd_path, prim_path)
         
+        # what happens here is closed-source...    
         super().__init__(
             prim_path=prim_path,
             name=name,
@@ -112,3 +122,98 @@ class ShadowHand(Robot):
                 config["damping"]*np.pi/180, 
                 config["max_force"]
             )
+
+
+from pxr import Gf
+class FingertipContactSensor:
+    def __init__(
+        self,
+        cs,
+        prim_path,
+        # scene,
+        # name,
+        translation,
+        radius=-1,
+        offset=[0, 0, 0],
+        color=(1.0, 0.2, 0.1, 1.0),
+        visualize=True,
+    ):
+        self._cs = cs
+        self._prim_path = prim_path
+        # self._name = str(name)
+        # self._sensor_path = self._prim_path + "/" + self._name
+        self._radius = radius
+        self._offset = offset
+        self._color = color
+        self._visualize = visualize
+        # self.scene = scene
+        self._translation = translation
+        self.set_force_sensor()
+
+    def set_force_sensor(
+        self,
+    ):
+        """
+        Sets force sensor on specified prim.
+
+        Args:
+            prim_path (_type_): _description_
+            radius (int, optional): _description_. Defaults to -1.
+            offset (list, optional): _description_. Defaults to [0, 0, 0].
+
+        Returns:
+            _type_: _description_
+        """
+
+        
+        result, self.sensor = omni.kit.commands.execute(
+            "IsaacSensorCreateContactSensor",
+            path="/contact_sensor",
+            parent=self._prim_path,
+            min_threshold=0,
+            max_threshold=10000000,
+            radius=self._radius,
+            color=self._color,
+            sensor_period=-1,
+            # translation=Gf.Vec3d(self._translation[0].item(), self._translation[1].item(), self._translation[2].item()),
+            # translation=self._offset,
+            visualize=self._visualize,
+        )
+        self._sensor_path = self._prim_path + "/contact_sensor"
+        
+    def get_data(self):
+        """_summary_"""
+        
+        raw_data = self._cs.get_contact_sensor_raw_data(self._sensor_path)
+        reading = self._cs.get_sensor_sim_reading(self._sensor_path)
+
+        force_val = reading.value
+        normals = np.array(
+            [[x, y, z] for (x, y, z) in raw_data["normal"]]
+        )  # global coordinates
+
+        if reading.inContact:
+            # get global force direction vector
+            direction = np.sum(normals, axis=0)
+            direction = direction / np.linalg.norm(direction)
+
+        else:
+            direction = [0, 0, 0]
+
+        positions = raw_data["position"]  # global coordinates TODO compute local ones
+        impulses = raw_data["impulse"]  # global coordinates
+        dts = raw_data["dt"]
+        reading_ts = reading.time  # TODO use timestamps for log
+        sim_ts = raw_data["time"]
+
+        return (
+            force_val,
+            direction,
+            impulses,
+            dts,
+            normals,
+            positions,
+            reading_ts,
+            sim_ts,
+        )
+
