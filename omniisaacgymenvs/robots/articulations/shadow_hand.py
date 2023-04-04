@@ -36,7 +36,7 @@ from omni.isaac.core.utils.stage import add_reference_to_stage
 from omniisaacgymenvs.tasks.utils.usd_utils import set_drive
 
 import carb
-from pxr import Usd, UsdGeom, Sdf, Gf, PhysxSchema, UsdPhysics
+from pxr import Gf, PhysxSchema
 
 import omni
 
@@ -71,19 +71,18 @@ class ShadowHand(Robot):
             torch.tensor([1.0, 0.0, 0.0, 0.0]) if orientation is None else orientation
         )
 
-        # TODO test: let's try to create the contact sensors here
+        # create the contact sensors
         self.contact_sensors = {}
         for finger_name in fingertips:
             fingertip_path = (
                 prim_path + "/" + finger_name
-            )  # + "/collisions/" + finger_name[:7] + "C_" + finger_name[7:]
+            ) 
             self.contact_sensors[finger_name] = FingertipContactSensor(
                 cs, fingertip_path, radius=0.01, translation=self._position
             )
 
         add_reference_to_stage(self._usd_path, prim_path)
 
-        # what happens here is closed-source...
         super().__init__(
             prim_path=prim_path,
             name=name,
@@ -134,32 +133,21 @@ class ShadowHand(Robot):
                 config["max_force"],
             )
 
-
-from pxr import Gf
-
-
 class FingertipContactSensor:
     def __init__(
         self,
         cs,
         prim_path,
-        # scene,
-        # name,
         translation,
         radius=-1,
-        offset=[0, 0, 0],
         color=(1.0, 0.2, 0.1, 1.0),
         visualize=True,
     ):
         self._cs = cs
         self._prim_path = prim_path
-        # self._name = str(name)
-        # self._sensor_path = self._prim_path + "/" + self._name
         self._radius = radius
-        self._offset = offset
         self._color = color
         self._visualize = visualize
-        # self.scene = scene
         self._translation = translation
         self.set_force_sensor()
 
@@ -167,18 +155,14 @@ class FingertipContactSensor:
         self,
     ):
         """
-        Sets force sensor on specified prim.
+        Create force sensor and attach on specified prim.
 
         Args:
-            prim_path (_type_): _description_
-            radius (int, optional): _description_. Defaults to -1.
-            offset (list, optional): _description_. Defaults to [0, 0, 0].
-
-        Returns:
-            _type_: _description_
+            prim_path (str): Path of the prim on which to create the contact sensor.
+            radius (int, optional): Radius of the contact sensor sphere. Defaults to -1.
         """
 
-        result, self.sensor = omni.kit.commands.execute(
+        result, sensor = omni.kit.commands.execute(
             "IsaacSensorCreateContactSensor",
             path="/contact_sensor",
             parent=self._prim_path,
@@ -187,15 +171,13 @@ class FingertipContactSensor:
             radius=self._radius,
             color=self._color,
             sensor_period=-1,
-            # translation=Gf.Vec3d(self._translation[0].item(), self._translation[1].item(), self._translation[2].item()),
-            # translation=self._offset,
             translation=Gf.Vec3d(0.0, 0.0, 0.026),
             visualize=self._visualize,
         )
         self._sensor_path = self._prim_path + "/contact_sensor"
 
     def get_data(self):
-        """_summary_"""
+        """Gets contact sensor (processed) data."""
 
         raw_data = self._cs.get_contact_sensor_raw_data(self._sensor_path)
         reading = self._cs.get_sensor_sim_reading(self._sensor_path)
