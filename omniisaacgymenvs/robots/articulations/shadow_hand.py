@@ -74,9 +74,7 @@ class ShadowHand(Robot):
         # create the contact sensors
         self.contact_sensors = {}
         for finger_name in fingertips:
-            fingertip_path = (
-                prim_path + "/" + finger_name
-            ) 
+            fingertip_path = prim_path + "/" + finger_name
             self.contact_sensors[finger_name] = FingertipContactSensor(
                 cs, fingertip_path, radius=0.01, translation=self._position
             )
@@ -132,6 +130,7 @@ class ShadowHand(Robot):
                 config["damping"] * np.pi / 180,
                 config["max_force"],
             )
+
 
 class FingertipContactSensor:
     def __init__(
