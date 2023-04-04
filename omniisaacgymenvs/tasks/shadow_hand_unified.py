@@ -17,6 +17,7 @@ import torch
 from gym import spaces
 import numpy as np
 
+
 class ShadowHandCustomTask(
     RLTask  # RLTask contains rl_games-specific config parameters and buffers
 ):
@@ -171,9 +172,7 @@ class ShadowHandCustomTask(
 
         # clones envs
         replicate_physics = False if self._dr_randomizer.randomize else True
-        super().set_up_scene(
-            scene, replicate_physics
-        )  
+        super().set_up_scene(scene, replicate_physics)
 
         # get a view of the cloned shadow hands and add it to the scene
         self._shadow_hands = self.get_hand_view(scene)
@@ -241,9 +240,7 @@ class ShadowHandCustomTask(
 
         # get manipulated objects' initial position and orientation (for reset), and set objects' initial velocities
         self.object_init_pos, self.object_init_rot = self._objects.get_world_poses()
-        self.object_init_pos -= (
-            self._env_pos
-        )  
+        self.object_init_pos -= self._env_pos
         self.object_init_velocities = torch.zeros_like(
             self._objects.get_velocities(), dtype=torch.float, device=self.device
         )
@@ -360,8 +357,7 @@ class ShadowHandCustomTask(
         self.get_tactile_observations()
 
     def get_pc_observations(self):
-        """Gets proprioceptive observations.
-        """
+        """Gets proprioceptive observations."""
         # fingertip observations
         self.get_fingertip_observations()
 
@@ -399,10 +395,8 @@ class ShadowHandCustomTask(
 
         self.obs_buf_offset += 65
 
-
     def get_dof_observations(self):
-        """Gets proprioceptive dof-related observations.
-        """
+        """Gets proprioceptive dof-related observations."""
         # get data
         self.hand_dof_pos = self._shadow_hands.get_joint_positions(clone=False)
         self.hand_dof_vel = self._shadow_hands.get_joint_velocities(clone=False)
@@ -437,9 +431,9 @@ class ShadowHandCustomTask(
 
         self.obs_buf_offset += 3 * self.num_hand_dofs
 
-    def get_tactile_observations(self):  
+    def get_tactile_observations(self):
         """Gets tacile/contact-related data."""
-        
+
         for prim_path in self._shadow_hands.prim_paths:
             for finger_name in self.fingertips:
                 sensor_path = prim_path + "/" + finger_name + "/contact_sensor"
@@ -491,8 +485,7 @@ class ShadowHandCustomTask(
         pass
 
     def get_hand(self):
-        """Creates ShadowHand instance and set initial pose.
-        """
+        """Creates ShadowHand instance and set initial pose."""
         # set Shadow hand initial position and orientation
         hand_start_translation = torch.tensor([0.0, 0.0, 0.5], device=self.device)
         hand_start_orientation = torch.tensor(
@@ -662,6 +655,7 @@ class ShadowHandCustomTask(
 
         self.reset_buf[env_ids] = 0
 
+
 # TorchScript functions
 
 
@@ -673,8 +667,7 @@ def compute_hand_reward(
     fall_dist: float,
     object_init_pos,
 ):
-    """Computes task rewards.
-    """
+    """Computes task rewards."""
     goal_dist = torch.norm(object_pos - object_init_pos, p=2, dim=-1)
 
     # Check env termination conditions, including maximum success number
@@ -687,8 +680,7 @@ def compute_hand_reward(
 
 @torch.jit.script
 def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
-    """Randomizes rotation.
-    """
+    """Randomizes rotation."""
     return quat_mul(
         quat_from_angle_axis(rand0 * np.pi, x_unit_tensor),
         quat_from_angle_axis(rand1 * np.pi, y_unit_tensor),
