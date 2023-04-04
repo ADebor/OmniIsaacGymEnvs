@@ -56,7 +56,6 @@ class ShadowHandView(ArticulationView):
     def actuated_dof_indices(self):
         return self._actuated_dof_indices
 
-
     def initialize(self, physics_sim_view):
         super().initialize(physics_sim_view)
         self.actuated_joint_names = [
