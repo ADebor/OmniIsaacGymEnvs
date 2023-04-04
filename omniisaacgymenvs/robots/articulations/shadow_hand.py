@@ -78,7 +78,7 @@ class ShadowHand(Robot):
                 prim_path + "/" + finger_name
             )  # + "/collisions/" + finger_name[:7] + "C_" + finger_name[7:]
             self.contact_sensors[finger_name] = FingertipContactSensor(
-                cs, fingertip_path, radius=-1, translation=self._position
+                cs, fingertip_path, radius=0.01, translation=self._position
             )
 
         add_reference_to_stage(self._usd_path, prim_path)
@@ -189,6 +189,7 @@ class FingertipContactSensor:
             sensor_period=-1,
             # translation=Gf.Vec3d(self._translation[0].item(), self._translation[1].item(), self._translation[2].item()),
             # translation=self._offset,
+            translation=Gf.Vec3d(0.0, 0.0, 0.026),
             visualize=self._visualize,
         )
         self._sensor_path = self._prim_path + "/contact_sensor"
