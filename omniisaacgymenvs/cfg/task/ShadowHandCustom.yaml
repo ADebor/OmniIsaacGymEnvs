@@ -54,8 +54,8 @@ sim:
   add_ground_plane: True
   add_distant_light: True
   use_gpu_pipeline: ${eq:${...pipeline},"gpu"}
-  # use_flatcache: True
-  use_flatcache: False
+  use_flatcache: True
+  # use_flatcache: False
   enable_scene_query_support: False
   disable_contact_processing: False
 
@@ -78,7 +78,8 @@ sim:
     enable_sleeping: True
     enable_stabilization: True
     # GPU buffers
-    gpu_max_rigid_contact_count: 1048576
+    # gpu_max_rigid_contact_count: 1048576  #1MB
+    gpu_max_rigid_contact_count: 2097152
     gpu_max_rigid_patch_count: 68157440
     gpu_found_lost_pairs_capacity: 20971520
     gpu_found_lost_aggregate_pairs_capacity: 20971520
@@ -93,6 +94,7 @@ sim:
     # -1 to use default values
     override_usd_defaults: False
     enable_self_collisions: True
+    # enable_self_collisions: False
     enable_gyroscopic_forces: True
     # also in stage params
     # per-actor
