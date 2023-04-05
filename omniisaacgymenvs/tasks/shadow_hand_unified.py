@@ -581,8 +581,7 @@ class ShadowHandCustomTask(
 
         # get object asset and add reference to stage
         self.object_usd_path = (
-            # f"{self._assets_root_path}/Isaac/Props/Blocks/block_instanceable.usd"
-            f"{self._assets_root_path}/Isaac/Robots/AllegroHand/allegro_hand_instanceable.usd"
+            f"{self._assets_root_path}/Isaac/Props/Blocks/block_instanceable.usd"
         )
         add_reference_to_stage(
             self.object_usd_path, self.default_zero_env_path + "/object"
