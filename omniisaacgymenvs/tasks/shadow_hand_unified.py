@@ -182,23 +182,23 @@ class ShadowHandCustomTask(
         scene.add(self._shadow_hands)
 
         # create contact sensors
-        self._contact_sensors = {}
-        self.env_name_offset = self.default_zero_env_path.find("env_")
-        self._contact_sensor_translation = Gf.Vec3d(0.0, 0.0, 0.026)
+        # self._contact_sensors = {}
+        # self.env_name_offset = self.default_zero_env_path.find("env_")
+        # self._contact_sensor_translation = Gf.Vec3d(0.0, 0.0, 0.026)
 
-        for prim_path in self._shadow_hands.prim_paths:
-            env_name = prim_path[
-                self.env_name_offset : self.env_name_offset + len("env_") + 1
-            ]
-            self._contact_sensors[env_name] = {}
-            for finger_name in self.fingertips:
-                fingertip_path = prim_path + "/" + finger_name
-                self._contact_sensors[env_name][finger_name] = FingertipContactSensor(
-                    self._cs,
-                    fingertip_path,
-                    radius=0.01,
-                    translation=self._contact_sensor_translation,
-                )
+        # for prim_path in self._shadow_hands.prim_paths:
+        #     env_name = prim_path[
+        #         self.env_name_offset : self.env_name_offset + len("env_") + 1
+        #     ]
+        #     self._contact_sensors[env_name] = {}
+        #     for finger_name in self.fingertips:
+        #         fingertip_path = prim_path + "/" + finger_name
+        #         self._contact_sensors[env_name][finger_name] = FingertipContactSensor(
+        #             self._cs,
+        #             fingertip_path,
+        #             radius=0.01,
+        #             translation=self._contact_sensor_translation,
+        #         )
 
         # create a view of the cloned objects and add it to the scene
         self._objects = RigidPrimView(
@@ -459,30 +459,37 @@ class ShadowHandCustomTask(
     def get_tactile_observations(self):
         """Gets tacile/contact-related data."""
 
-        for env, sensor_dict in self._contact_sensors.items():
-            for finger, sensor in sensor_dict.items():
-                (
-                    force_val,
-                    direction,
-                    impulses,
-                    dts,
-                    normals,
-                    positions,
-                    reading_ts,
-                    sim_ts,
-                ) = sensor.get_data()
+        # net contact forces
+        net_contact_vec = self._shadow_hands._fingers.get_net_contact_forces(clone=False)
+        net_contact_val = torch.norm(net_contact_vec.view(self._num_envs, len(self.fingertips), 3), dim=-1)
+        print(self._shadow_hands._fingers.prim_paths)
+        print("\nContacts: ", net_contact_vec, "and force", net_contact_val)
 
-                print(
-                    "-- Fingertip sensor for finger {} in env {} --\n".format(
-                        finger, env
-                    )
-                    + "force: {} \n ".format(force_val)
-                    + "impulses: {} \n ".format(impulses)
-                    + "direction: {} \n ".format(direction)
-                    + "from normals: {} \n ".format(normals)
-                    + "reading time: {} \n ".format(reading_ts)
-                    + "sim time: {} \n".format(sim_ts)
-                )
+        # detailed force sensors
+        # for env, sensor_dict in self._contact_sensors.items():
+        #     for finger, sensor in sensor_dict.items():
+        #         (
+        #             force_val,
+        #             direction,
+        #             impulses,
+        #             dts,
+        #             normals,
+        #             positions,
+        #             reading_ts,
+        #             sim_ts,
+        #         ) = sensor.get_data()
+
+        #         print(
+        #             "-- Fingertip sensor for finger {} in env {} --\n".format(
+        #                 finger, env
+        #             )
+        #             + "force: {} \n ".format(force_val)
+        #             + "impulses: {} \n ".format(impulses)
+        #             + "direction: {} \n ".format(direction)
+        #             + "from normals: {} \n ".format(normals)
+        #             + "reading time: {} \n ".format(reading_ts)
+        #             + "sim time: {} \n".format(sim_ts)
+        #         )
 
         return
 
@@ -555,6 +562,10 @@ class ShadowHandCustomTask(
         hand_view = ShadowHandView(
             prim_paths_expr="/World/envs/.*/shadow_hand", name="shadow_hand_view"
         )
+
+        # print("fingers_pose = ", hand_view._fingers.get_world_poses())
+        # print("fingers coms = ", hand_view._fingers.get_coms())
+        # exit()
 
         # add the view of the fingers to the scene
         scene.add(hand_view._fingers)
