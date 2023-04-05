@@ -40,16 +40,20 @@ class ShadowHandView(ArticulationView):
         self,
         prim_paths_expr: str,
         name: Optional[str] = "ShadowHandView",
+        track_contact_forces=True,
+        prepare_contact_sensors=True,
     ) -> None:
         super().__init__(
             prim_paths_expr=prim_paths_expr, name=name, reset_xform_properties=False
         )
 
-        # define finger prims view
+        # define finger prims view, track contact forces and prepare contact sensors
         self._fingers = RigidPrimView(
             prim_paths_expr="/World/envs/.*/shadow_hand/robot0.*distal",
             name="finger_view",
             reset_xform_properties=False,
+            track_contact_forces=track_contact_forces,
+            prepare_contact_sensors=prepare_contact_sensors,
         )
 
     @property
