@@ -1,3 +1,4 @@
+from pxr import Gf
 import omni.replicator.isaac as dr
 from omni.isaac.sensor import _sensor
 from omni.isaac.core.utils.torch import *
@@ -16,6 +17,8 @@ import torch
 # import wandb
 from gym import spaces
 import numpy as np
+
+from .fingertip_contact_sensor import FingertipContactSensor
 
 
 class ShadowHandCustomTask(
@@ -178,12 +181,34 @@ class ShadowHandCustomTask(
         self._shadow_hands = self.get_hand_view(scene)
         scene.add(self._shadow_hands)
 
+        # create contact sensors
+        self._contact_sensors = {}
+        self.env_name_offset = self.default_zero_env_path.find("env_")
+        self._contact_sensor_translation = Gf.Vec3d(0.0, 0.0, 0.026)
+
+        for prim_path in self._shadow_hands.prim_paths:
+            env_name = prim_path[
+                self.env_name_offset : self.env_name_offset + len("env_") + 1
+            ]
+            self._contact_sensors[env_name] = {}
+            for finger_name in self.fingertips:
+                fingertip_path = prim_path + "/" + finger_name
+                self._contact_sensors[env_name][finger_name] = FingertipContactSensor(
+                    self._cs,
+                    fingertip_path,
+                    radius=0.01,
+                    translation=self._contact_sensor_translation,
+                )
+
         # create a view of the cloned objects and add it to the scene
         self._objects = RigidPrimView(
             prim_paths_expr="/World/envs/env_.*/object/object",
             name="object_view",
             reset_xform_properties=False,
-            masses=torch.tensor([0.07087] * self._num_envs, device=self.device),
+            # masses=torch.tensor([0.07087] * self._num_envs, device=self.device),
+            masses=torch.tensor([1.7087] * self._num_envs, device=self.device),
+            
+            scales=torch.tensor(2 * torch.ones((self._num_envs, 3)), device=self.device)
         )
         scene.add(self._objects)
 
@@ -434,35 +459,30 @@ class ShadowHandCustomTask(
     def get_tactile_observations(self):
         """Gets tacile/contact-related data."""
 
-        for prim_path in self._shadow_hands.prim_paths:
-            for finger_name in self.fingertips:
-                sensor_path = prim_path + "/" + finger_name + "/contact_sensor"
-                data = self._cs.get_contact_sensor_raw_data(sensor_path)
-                print("data from ", finger_name, ":")
-                print(data)
-                print("from prim path: ", prim_path)
+        for env, sensor_dict in self._contact_sensors.items():
+            for finger, sensor in sensor_dict.items():
+                (
+                    force_val,
+                    direction,
+                    impulses,
+                    dts,
+                    normals,
+                    positions,
+                    reading_ts,
+                    sim_ts,
+                ) = sensor.get_data()
 
-        # for sensor_name, sensor in self.shadow_hand.contact_sensors.items():
-        #     print("sensor ", sensor, "is a contact sensor: ", self._cs.is_contact_sensor(sensor._prim_path + "/contact_sensor"))
-        #     (
-        #         force_val,
-        #         direction,
-        #         impulses,
-        #         dts,
-        #         normals,
-        #         positions,
-        #         reading_ts,
-        #         sim_ts,
-        #     ) = sensor.get_data()
-
-        #     print(
-        #         "-- TEST: Fingertip sensor: {} --\n".format(sensor_name)
-        #         + "force: {} \n ".format(force_val)
-        #         + "direction: {} \n ".format(direction)
-        #         + "from normals: {} \n ".format(normals)
-        #         + "reading time: {} \n ".format(reading_ts)
-        #         + "sim time: {} \n".format(sim_ts)
-        #     )
+                print(
+                    "-- Fingertip sensor for finger {} in env {} --\n".format(
+                        finger, env
+                    )
+                    + "force: {} \n ".format(force_val)
+                    + "impulses: {} \n ".format(impulses)
+                    + "direction: {} \n ".format(direction)
+                    + "from normals: {} \n ".format(normals)
+                    + "reading time: {} \n ".format(reading_ts)
+                    + "sim time: {} \n".format(sim_ts)
+                )
 
         return
 
@@ -498,8 +518,6 @@ class ShadowHandCustomTask(
             name="shadow_hand",
             translation=hand_start_translation,
             orientation=hand_start_orientation,
-            fingertips=self.fingertips,  # TODO test
-            cs=self._cs,  # TODO test
         )
 
         # apply articulation settings to Shadow hand
@@ -563,7 +581,8 @@ class ShadowHandCustomTask(
 
         # get object asset and add reference to stage
         self.object_usd_path = (
-            f"{self._assets_root_path}/Isaac/Props/Blocks/block_instanceable.usd"
+            # f"{self._assets_root_path}/Isaac/Props/Blocks/block_instanceable.usd"
+            f"{self._assets_root_path}/Isaac/Robots/AllegroHand/allegro_hand_instanceable.usd"
         )
         add_reference_to_stage(
             self.object_usd_path, self.default_zero_env_path + "/object"
