@@ -55,9 +55,9 @@ sim:
   add_distant_light: True
   use_gpu_pipeline: ${eq:${...pipeline},"gpu"}
   use_flatcache: True
-  # use_flatcache: False
   enable_scene_query_support: False
   disable_contact_processing: False
+  # disable_contact_processing: True
 
   # set to True if you use camera sensors in the environment
   enable_cameras: False
@@ -104,7 +104,7 @@ sim:
     stabilization_threshold: 0.0005
     # per-body
     density: -1
-    max_depenetration_velocity: 1000.0
+    max_depenetration_velocity: 100.0
   object:
     # -1 to use default values
     override_usd_defaults: False
