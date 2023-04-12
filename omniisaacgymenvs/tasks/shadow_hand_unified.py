@@ -1,6 +1,7 @@
-from pxr import Gf
+# NVIDIA Omniverse imports
 import omni.replicator.isaac as dr
-from omni.isaac.sensor import _sensor
+# from omni.isaac.sensor import _sensor
+# from .fingertip_contact_sensor import FingertipContactSensor
 from omni.isaac.core.utils.torch import *
 from omni.isaac.gym.vec_env import VecEnvBase
 from omniisaacgymenvs.tasks.base.rl_task import RLTask
@@ -12,14 +13,18 @@ from omniisaacgymenvs.robots.articulations.shadow_hand import ShadowHand
 from omni.isaac.core.utils.stage import get_current_stage, add_reference_to_stage
 from omniisaacgymenvs.robots.articulations.views.shadow_hand_view import ShadowHandView
 
+# general imports
 import torch
-
-# import wandb
 from gym import spaces
 import numpy as np
 
-from .fingertip_contact_sensor import FingertipContactSensor
-
+# live plotting imports
+import matplotlib.pyplot as plt
+from matplotlib import style
+import matplotlib
+matplotlib.use("Qt5Agg")
+plt.ion()
+import time
 
 class ShadowHandCustomTask(
     RLTask  # RLTask contains rl_games-specific config parameters and buffers
@@ -59,17 +64,21 @@ class ShadowHandCustomTask(
         self.num_fingertips = len(self.fingertips)
 
         # set number of observations and actions
-        self._num_object_observations = 13  # 5*(pos:3, rot:4, linvel:3, angvel:3)
-        # self._num_tactile_observations = 5                    # 5 tactile sensors
+        self._num_object_observations = 13  # (pos:3, rot:4, linvel:3, angvel:3)
+        self._num_force_direction_obs = 15
+        self._num_force_val_obs = 5
+        self._num_tactile_observations = (
+            self._num_force_direction_obs + self._num_force_val_obs
+        )  # 20
         self._num_dof_observations = (
-            3 * 25
-        )  # (pos:1 + vel:1 + eff:1) * num_joints:25 (can be retrieved from hands rather than hardcoded)
+            3 * 24
+        )  # (pos:1 + vel:1 + eff:1) * num_joints:24 (can be retrieved from hands rather than hardcoded)
         self._num_fingertip_observations = (
             65  # (pos:3, rot:4, linvel:3, angvel:3) * num_fingers:5
         )
         self._num_observations = (
-            # self._tactile_observations +\ TODO
-            self._num_object_observations
+            self._num_tactile_observations
+            + self._num_object_observations
             + self._num_dof_observations
             + self._num_fingertip_observations
         )
@@ -121,7 +130,7 @@ class ShadowHandCustomTask(
 
         # define custom action space
         self.action_space = spaces.Box(
-            np.ones(self._num_actions) * -10.0, np.ones(self._num_actions) * 10.0
+            np.ones(self._num_actions) * -5.0, np.ones(self._num_actions) * 5.0
         )  # -10 and 10 could be -Inf Inf
 
         # call parent class's __init__
@@ -152,6 +161,27 @@ class ShadowHandCustomTask(
 
         self.fingertip_prim_path = self.default_zero_env_path + "/shadow_hand/"
 
+        # init wandb
+        # run = wandb.init(
+        #         project="My first test project",
+        #         notes="",
+        #         tags=["first_tests","first_results",]
+        #     )
+
+        # # create wandb config (config hyperparameters, etc., to query results easily)
+        # wandb.config = {
+        #     "num_envs": self._task_cfg["env"]["numEnvs"],
+        # }
+
+        # live plotting init
+        style.use('dark_background')
+        self.env0_tactile_fig = plt.figure()
+        self.env0_tactile_ax = self.env0_tactile_fig.add_subplot(111)
+        self.env0_tactile_ax.set_ylabel('Contact force value [N]')
+        self.env0_tactile_ax.set_ylim(bottom=0.0, top=1.5)
+        self.env0_tactile_ax.tick_params(axis='x', labelrotation = 45)
+        self.env0_tactile_fig.suptitle("env0 - Hand-related observations")
+        
     def set_up_scene(self, scene, replicate_physics=True) -> None:
         """
         Implements environment setup.
@@ -161,7 +191,7 @@ class ShadowHandCustomTask(
             replicate_physics (bool, optional): Bool to clone physics using PhysX API for better performance. Defaults to True.
         """
 
-        self._cs = _sensor.acquire_contact_sensor_interface()
+        # self._cs = _sensor.acquire_contact_sensor_interface()
 
         # get USD stage, assets path and initialization params
         self._stage = get_current_stage()
@@ -181,6 +211,13 @@ class ShadowHandCustomTask(
         self._shadow_hands = self.get_hand_view(scene)
         scene.add(self._shadow_hands)
 
+        # get fingers names
+        self.finger_names = self._shadow_hands._fingers.prim_paths
+        self.finger_names = self.finger_names[:5]
+        self.finger_names = [finger_name[30:] for finger_name in self.finger_names]
+        bar_colors = ['tab:red', 'tab:cyan', 'tab:pink', 'tab:olive', 'tab:purple']
+        self.env0_tactile_bars = self.env0_tactile_ax.bar(self.finger_names, [0., 0., 0., 0., 0.], color=bar_colors)
+ 
         # create contact sensors
         # self._contact_sensors = {}
         # self.env_name_offset = self.default_zero_env_path.find("env_")
@@ -207,8 +244,9 @@ class ShadowHandCustomTask(
             reset_xform_properties=False,
             # masses=torch.tensor([0.07087] * self._num_envs, device=self.device),
             masses=torch.tensor([1.7087] * self._num_envs, device=self.device),
-            
-            scales=torch.tensor(2 * torch.ones((self._num_envs, 3)), device=self.device)
+            scales=torch.tensor(
+                2 * torch.ones((self._num_envs, 3)), device=self.device
+            ),
         )
         scene.add(self._objects)
 
@@ -231,7 +269,7 @@ class ShadowHandCustomTask(
         self._shadow_hands.set_effort_modes(mode="force")
 
         # check effort mode
-        print("Shadow hand effort modes: ", self._shadow_hands.get_effort_modes())
+        # print("Shadow hand effort modes: ", self._shadow_hands.get_effort_modes())
 
         # get dof position limits of the shadow hand
         dof_limits = self._shadow_hands.get_dof_limits()
@@ -320,14 +358,14 @@ class ShadowHandCustomTask(
             self.randomization_buf[rand_env_ids] = 0
 
         # print("Efforts/Actions: \n {} \n".format(self.efforts))
-        # # wandb logging
+        # wandb logging
         # wandb.log(
         #     {
-        #         "action_0": self.efforts[0],
-        #         "action_1": self.efforts[1],
-        #         "action_2": self.efforts[2],
-        #         "action_3": self.efforts[3],
-        #         "action_4": self.efforts[4],
+        #         "action_0": self.efforts[0][0],
+        #         "action_1": self.efforts[0][1],
+        #         "action_2": self.efforts[0][2],
+        #         "action_3": self.efforts[0][3],
+        #         "action_4": self.efforts[0][4],
         #     }
         # )
 
@@ -343,7 +381,13 @@ class ShadowHandCustomTask(
         self.get_hand_observations()
 
         observations = {self._shadow_hands.name: {"obs_buf": self.obs_buf}}
-
+      
+        bar_vals = self.obs_buf[0][-self._num_force_val_obs:].cpu().numpy()
+        for i, bar_val in enumerate(bar_vals):
+            self.env0_tactile_bars[i].set_height(bar_val)
+        self.env0_tactile_fig.canvas.draw()
+        self.env0_tactile_fig.canvas.flush_events()
+    
         return observations
 
     def get_object_observations(self):
@@ -460,10 +504,28 @@ class ShadowHandCustomTask(
         """Gets tacile/contact-related data."""
 
         # net contact forces
-        net_contact_vec = self._shadow_hands._fingers.get_net_contact_forces(clone=False)
-        net_contact_val = torch.norm(net_contact_vec.view(self._num_envs, len(self.fingertips), 3), dim=-1)
-        print(self._shadow_hands._fingers.prim_paths)
-        print("\nContacts: ", net_contact_vec, "and force", net_contact_val)
+        net_contact_vec = self._shadow_hands._fingers.get_net_contact_forces(
+            clone=False
+        )
+        net_contact_val = torch.norm(
+            net_contact_vec.view(self._num_envs, len(self.fingertips), 3), dim=-1
+        )
+        # print(self._shadow_hands._fingers.prim_paths)
+        # print("\nContacts: ", net_contact_vec, "and force", net_contact_val)
+
+        self.obs_buf[
+            :,
+            self.obs_buf_offset
+            + 0 : self.obs_buf_offset
+            + self._num_force_direction_obs,
+        ] = net_contact_vec.reshape(self.num_envs, 3 * self.num_fingertips)
+        self.obs_buf[
+            :,
+            self.obs_buf_offset
+            + self._num_force_direction_obs : self.obs_buf_offset
+            + self._num_force_direction_obs
+            + self._num_force_val_obs,
+        ] = net_contact_val
 
         # detailed force sensors
         # for env, sensor_dict in self._contact_sensors.items():
@@ -683,7 +745,6 @@ class ShadowHandCustomTask(
         )
 
         self.reset_buf[env_ids] = 0
-
 
 # TorchScript functions
 
