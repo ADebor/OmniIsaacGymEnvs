@@ -1,5 +1,6 @@
 # NVIDIA Omniverse imports
 import omni.replicator.isaac as dr
+
 # from omni.isaac.sensor import _sensor
 # from .fingertip_contact_sensor import FingertipContactSensor
 from omni.isaac.core.utils.torch import *
@@ -22,9 +23,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import style
 import matplotlib
+
 matplotlib.use("Qt5Agg")
 plt.ion()
 import time
+
 
 class ShadowHandCustomTask(
     RLTask  # RLTask contains rl_games-specific config parameters and buffers
@@ -174,14 +177,14 @@ class ShadowHandCustomTask(
         # }
 
         # live plotting init
-        style.use('dark_background')
+        style.use("dark_background")
         self.env0_tactile_fig = plt.figure()
         self.env0_tactile_ax = self.env0_tactile_fig.add_subplot(111)
-        self.env0_tactile_ax.set_ylabel('Contact force value [N]')
+        self.env0_tactile_ax.set_ylabel("Contact force value [N]")
         self.env0_tactile_ax.set_ylim(bottom=0.0, top=1.5)
-        self.env0_tactile_ax.tick_params(axis='x', labelrotation = 45)
+        self.env0_tactile_ax.tick_params(axis="x", labelrotation=45)
         self.env0_tactile_fig.suptitle("env0 - Hand-related observations")
-        
+
     def set_up_scene(self, scene, replicate_physics=True) -> None:
         """
         Implements environment setup.
@@ -215,9 +218,11 @@ class ShadowHandCustomTask(
         self.finger_names = self._shadow_hands._fingers.prim_paths
         self.finger_names = self.finger_names[:5]
         self.finger_names = [finger_name[30:] for finger_name in self.finger_names]
-        bar_colors = ['tab:red', 'tab:cyan', 'tab:pink', 'tab:olive', 'tab:purple']
-        self.env0_tactile_bars = self.env0_tactile_ax.bar(self.finger_names, [0., 0., 0., 0., 0.], color=bar_colors)
- 
+        bar_colors = ["tab:red", "tab:cyan", "tab:pink", "tab:olive", "tab:purple"]
+        self.env0_tactile_bars = self.env0_tactile_ax.bar(
+            self.finger_names, [0.0, 0.0, 0.0, 0.0, 0.0], color=bar_colors
+        )
+
         # create contact sensors
         # self._contact_sensors = {}
         # self.env_name_offset = self.default_zero_env_path.find("env_")
@@ -381,13 +386,13 @@ class ShadowHandCustomTask(
         self.get_hand_observations()
 
         observations = {self._shadow_hands.name: {"obs_buf": self.obs_buf}}
-      
-        bar_vals = self.obs_buf[0][-self._num_force_val_obs:].cpu().numpy()
+
+        bar_vals = self.obs_buf[0][-self._num_force_val_obs :].cpu().numpy()
         for i, bar_val in enumerate(bar_vals):
             self.env0_tactile_bars[i].set_height(bar_val)
         self.env0_tactile_fig.canvas.draw()
         self.env0_tactile_fig.canvas.flush_events()
-    
+
         return observations
 
     def get_object_observations(self):
@@ -745,6 +750,7 @@ class ShadowHandCustomTask(
         )
 
         self.reset_buf[env_ids] = 0
+
 
 # TorchScript functions
 
