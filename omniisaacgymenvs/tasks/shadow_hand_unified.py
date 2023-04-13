@@ -26,8 +26,6 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 plt.ion()
-import time
-
 
 class ShadowHandCustomTask(
     RLTask  # RLTask contains rl_games-specific config parameters and buffers
@@ -93,11 +91,7 @@ class ShadowHandCustomTask(
 
         # get metrics params
         self.dist_reward_scale = self._task_cfg["env"]["distRewardScale"]
-        self.rot_reward_scale = self._task_cfg["env"]["rotRewardScale"]
-        self.action_penalty_scale = self._task_cfg["env"]["actionPenaltyScale"]
         self.fall_dist = self._task_cfg["env"]["fallDistance"]
-        self.fall_penalty = self._task_cfg["env"]["fallPenalty"]
-        self.rot_eps = self._task_cfg["env"]["rotEps"]
         self.vel_obs_scale = self._task_cfg["env"]["velObsScale"]
 
         # get object reset params
@@ -109,27 +103,7 @@ class ShadowHandCustomTask(
         self.reset_dof_vel_noise = self._task_cfg["env"]["resetDofVelRandomInterval"]
         self.reset_dof_eff_noise = self._task_cfg["env"]["resetDofEffRandomInterval"]
 
-        # get shadow hand control settings
-        self.hand_dof_speed_scale = self._task_cfg["env"]["dofSpeedScale"]
-        self.use_relative_control = self._task_cfg["env"]["useRelativeControl"]
-        self.act_moving_average = self._task_cfg["env"]["actionsMovingAverage"]
-
-        # get end of episode settings
-        self.max_episode_length = self._task_cfg["env"]["episodeLength"]
-        self.reset_time = self._task_cfg["env"].get("resetTime", -1.0)
-
         self.av_factor = self._task_cfg["env"].get("averFactor", 0.1)
-
-        self.total_successes = 0
-        self.total_resets = 0
-        self.dt = 1.0 / 60
-        control_freq_inv = self._task_cfg["env"].get("controlFrequencyInv", 1)
-        if self.reset_time > 0.0:
-            self.max_episode_length = int(
-                round(self.reset_time / (control_freq_inv * self.dt))
-            )
-            print("Reset time: ", self.reset_time)
-            print("New episode length: ", self.max_episode_length)
 
         # define custom action space
         self.action_space = spaces.Box(
@@ -163,18 +137,6 @@ class ShadowHandCustomTask(
         )
 
         self.fingertip_prim_path = self.default_zero_env_path + "/shadow_hand/"
-
-        # init wandb
-        # run = wandb.init(
-        #         project="My first test project",
-        #         notes="",
-        #         tags=["first_tests","first_results",]
-        #     )
-
-        # # create wandb config (config hyperparameters, etc., to query results easily)
-        # wandb.config = {
-        #     "num_envs": self._task_cfg["env"]["numEnvs"],
-        # }
 
         # live plotting init
         style.use("dark_background")
@@ -273,9 +235,6 @@ class ShadowHandCustomTask(
         # set effort mode
         self._shadow_hands.set_effort_modes(mode="force")
 
-        # check effort mode
-        # print("Shadow hand effort modes: ", self._shadow_hands.get_effort_modes())
-
         # get dof position limits of the shadow hand
         dof_limits = self._shadow_hands.get_dof_limits()
         self.hand_dof_pos_lower_limits, self.hand_dof_pos_upper_limits = torch.t(
@@ -337,11 +296,11 @@ class ShadowHandCustomTask(
 
         # get actions to device
         self.actions = actions.clone().to(self.device)
-
+        
         # clamp actions using effort limits
         self.efforts = tensor_clamp(
             self.actions,
-            min_t=torch.zeros_like(self.hand_dof_effort_limits, dtype=torch.float32),
+            min_t=-self.hand_dof_effort_limits,
             max_t=self.hand_dof_effort_limits,
         )
 
@@ -361,18 +320,6 @@ class ShadowHandCustomTask(
             rand_env_ids = torch.nonzero(torch.logical_and(rand_envs, reset_buf))
             dr.physics_view.step_randomization(rand_env_ids)
             self.randomization_buf[rand_env_ids] = 0
-
-        # print("Efforts/Actions: \n {} \n".format(self.efforts))
-        # wandb logging
-        # wandb.log(
-        #     {
-        #         "action_0": self.efforts[0][0],
-        #         "action_1": self.efforts[0][1],
-        #         "action_2": self.efforts[0][2],
-        #         "action_3": self.efforts[0][3],
-        #         "action_4": self.efforts[0][4],
-        #     }
-        # )
 
     def get_observations(self) -> dict:
         """
@@ -515,8 +462,6 @@ class ShadowHandCustomTask(
         net_contact_val = torch.norm(
             net_contact_vec.view(self._num_envs, len(self.fingertips), 3), dim=-1
         )
-        # print(self._shadow_hands._fingers.prim_paths)
-        # print("\nContacts: ", net_contact_vec, "and force", net_contact_val)
 
         self.obs_buf[
             :,
@@ -629,10 +574,6 @@ class ShadowHandCustomTask(
         hand_view = ShadowHandView(
             prim_paths_expr="/World/envs/.*/shadow_hand", name="shadow_hand_view"
         )
-
-        # print("fingers_pose = ", hand_view._fingers.get_world_poses())
-        # print("fingers coms = ", hand_view._fingers.get_coms())
-        # exit()
 
         # add the view of the fingers to the scene
         scene.add(hand_view._fingers)
