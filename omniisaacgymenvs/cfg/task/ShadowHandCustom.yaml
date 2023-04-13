@@ -9,8 +9,8 @@ env:
   envSpacing: 0.75
   episodeLength: 600
 
-  clipObservations: 5.0
-  clipActions: 1.0
+  # clipObservations: 5.0
+  # clipActions: 1.0
 
   useRelativeControl: False
   dofSpeedScale: 20.0
