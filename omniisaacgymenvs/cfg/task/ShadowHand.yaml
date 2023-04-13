@@ -76,7 +76,7 @@ sim:
     enable_sleeping: True
     enable_stabilization: True
     # GPU buffers
-    gpu_max_rigid_contact_count: 1048576
+    gpu_max_rigid_contact_count: 2097152
     gpu_max_rigid_patch_count: 68157440
     gpu_found_lost_pairs_capacity: 20971520
     gpu_found_lost_aggregate_pairs_capacity: 20971520
