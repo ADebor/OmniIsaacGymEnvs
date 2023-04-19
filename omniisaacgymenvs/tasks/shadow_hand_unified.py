@@ -26,6 +26,7 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 plt.ion()
+import logging 
 
 class ShadowHandCustomTask(
     RLTask  # RLTask contains rl_games-specific config parameters and buffers
@@ -89,16 +90,23 @@ class ShadowHandCustomTask(
         self._num_envs = self._task_cfg["env"]["numEnvs"]
         self._env_spacing = self._task_cfg["env"]["envSpacing"]
 
-        # get metrics params
+        # get metrics scaling factors and parameters
         self.dist_reward_scale = self._task_cfg["env"]["distRewardScale"]
+        self.action_regul_scale = self._task_cfg["env"]["actionPenaltyScale"]
         self.fall_dist = self._task_cfg["env"]["fallDistance"]
+        self.fall_penalty = self._task_cfg["env"]["fallPenalty"]
+        self.no_fall_bonus = self._task_cfg["env"]["noFallBonus"]
+        self.z_pos_scale = self._task_cfg["env"]["zPosScale"]
+        self.contact_obs_scale = self._task_cfg["env"]["contactObsScale"]
+
+        # get observation scaling factors
         self.vel_obs_scale = self._task_cfg["env"]["velObsScale"]
 
         # get object reset params
         self.reset_obj_pos_noise = self._task_cfg["env"]["resetPositionNoise"]
         self.reset_obj_rot_noise = self._task_cfg["env"]["resetRotationNoise"]
 
-        # get shadow hand reset params
+        # get shadow hand reset noise params
         self.reset_dof_pos_noise = self._task_cfg["env"]["resetDofPosRandomInterval"]
         self.reset_dof_vel_noise = self._task_cfg["env"]["resetDofVelRandomInterval"]
         self.reset_dof_eff_noise = self._task_cfg["env"]["resetDofEffRandomInterval"]
@@ -139,13 +147,44 @@ class ShadowHandCustomTask(
         self.fingertip_prim_path = self.default_zero_env_path + "/shadow_hand/"
 
         # live plotting init
-        style.use("dark_background")
-        self.env0_tactile_fig = plt.figure()
-        self.env0_tactile_ax = self.env0_tactile_fig.add_subplot(111)
-        self.env0_tactile_ax.set_ylabel("Contact force value [N]")
-        self.env0_tactile_ax.set_ylim(bottom=0.0, top=1.5)
-        self.env0_tactile_ax.tick_params(axis="x", labelrotation=45)
-        self.env0_tactile_fig.suptitle("env0 - Hand-related observations")
+        self._tactile_obs_visu_is_on = self._task_cfg["tactile_obs_visu"]
+        if self._tactile_obs_visu_is_on:
+            style.use("dark_background")
+            self.env0_tactile_fig = plt.figure()
+            self.env0_tactile_ax = self.env0_tactile_fig.add_subplot(111)
+            self.env0_tactile_ax.set_ylabel("Contact force value [N] - scale: x{}".format(self.contact_obs_scale))
+            self.env0_tactile_ax.set_ylim(bottom=0.0, top=1.5)
+            self.env0_tactile_ax.tick_params(axis="x", labelrotation=45)
+            self.env0_tactile_fig.suptitle("env0 - Hand-related observations")
+
+        # handicap init 
+        self._handicap_is_on = self._task_cfg["handicap"]["isOn"]
+        if self._handicap_is_on:
+            self._handicap_cfg = {
+                "type": self._task_cfg["handicap"]["type"],
+                "effort_scales": self._task_cfg["handicap"]["effort_scales"],
+                "fingers": self._task_cfg["handicap"]["fingers"],
+                "strict": self._task_cfg["handicap"]["strict"],
+                "p_handic": self._task_cfg["handicap"]["p_handic"],
+                "p_handic_release": self._task_cfg["handicap"]["p_handic_release"],
+                # "delays": self._task_cfg["handicap"]["delays"],
+                "effort_scale_gauss": self._task_cfg["handicap"]["effort_scale_gauss"],
+                # "delay_scale_gauss": self._task_cfg["handicap"]["delay_scale_gauss"],
+            }
+            
+            self.finger_control_handicap_init()
+
+            # map dict of actuated dof indices and finger id (from FF to TH)
+            self.actuated_dof_finger_map_dict = {
+            0: [2, 7, 12],                  # FF
+                1: [3, 8, 13],              # MF
+                2: [4, 9, 14],              # RF
+                3: [5, 10, 15, 20-3],       # LF NB: -3 - 17,18,19 not actuated
+                4: [6, 11, 16, 21-3, 23-4], # TH NB: -4 - 22 not actuated either
+            }
+
+        self.dummy_bool = True
+
 
     def set_up_scene(self, scene, replicate_physics=True) -> None:
         """
@@ -177,13 +216,14 @@ class ShadowHandCustomTask(
         scene.add(self._shadow_hands)
 
         # get fingers names
-        self.finger_names = self._shadow_hands._fingers.prim_paths
-        self.finger_names = self.finger_names[:5]
-        self.finger_names = [finger_name[30:] for finger_name in self.finger_names]
-        bar_colors = ["tab:red", "tab:cyan", "tab:pink", "tab:olive", "tab:purple"]
-        self.env0_tactile_bars = self.env0_tactile_ax.bar(
-            self.finger_names, [0.0, 0.0, 0.0, 0.0, 0.0], color=bar_colors
-        )
+        if self._tactile_obs_visu_is_on:
+            self.finger_names = self._shadow_hands._fingers.prim_paths
+            self.finger_names = self.finger_names[:5]
+            self.finger_names = [finger_name[30:] for finger_name in self.finger_names]
+            bar_colors = ["tab:red", "tab:cyan", "tab:pink", "tab:olive", "tab:purple"]
+            self.env0_tactile_bars = self.env0_tactile_ax.bar(
+                self.finger_names, [0.0, 0.0, 0.0, 0.0, 0.0], color=bar_colors
+            )
 
         # create contact sensors
         # self._contact_sensors = {}
@@ -210,10 +250,10 @@ class ShadowHandCustomTask(
             name="object_view",
             reset_xform_properties=False,
             # masses=torch.tensor([0.07087] * self._num_envs, device=self.device),
-            masses=torch.tensor([1.7087] * self._num_envs, device=self.device),
-            scales=torch.tensor(
-                2 * torch.ones((self._num_envs, 3)), device=self.device
-            ),
+            masses=torch.tensor([0.700] * self._num_envs, device=self.device),
+            # scales=torch.tensor(
+            #     2 * torch.ones((self._num_envs, 3)), device=self.device
+            # ),
         )
         scene.add(self._objects)
 
@@ -304,6 +344,19 @@ class ShadowHandCustomTask(
             max_t=self.hand_dof_effort_limits,
         )
 
+        # apply handicap
+        if self._handicap_is_on:
+            self.apply_handicap()
+
+        if self.dummy_bool:
+            self.dummy_bool = False
+            self.efforts = torch.ones_like(self.efforts) * 0.06
+        else:
+            self.dummy_bool = True
+            self.efforts = torch.ones_like(self.efforts) * -0.1
+
+
+
         # set joint effort
         self._shadow_hands.set_joint_efforts(
             efforts=self.efforts,
@@ -334,11 +387,12 @@ class ShadowHandCustomTask(
 
         observations = {self._shadow_hands.name: {"obs_buf": self.obs_buf}}
 
-        bar_vals = self.obs_buf[0][-self._num_force_val_obs :].cpu().numpy()
-        for i, bar_val in enumerate(bar_vals):
-            self.env0_tactile_bars[i].set_height(bar_val)
-        self.env0_tactile_fig.canvas.draw()
-        self.env0_tactile_fig.canvas.flush_events()
+        if self._tactile_obs_visu_is_on:
+            bar_vals = self.obs_buf[0][-self._num_force_val_obs :].cpu().numpy()
+            for i, bar_val in enumerate(bar_vals):
+                self.env0_tactile_bars[i].set_height(bar_val)
+            self.env0_tactile_fig.canvas.draw()
+            self.env0_tactile_fig.canvas.flush_events()
 
         return observations
 
@@ -459,6 +513,8 @@ class ShadowHandCustomTask(
         net_contact_vec = self._shadow_hands._fingers.get_net_contact_forces(
             clone=False
         )
+        net_contact_vec *= self.contact_obs_scale
+
         net_contact_val = torch.norm(
             net_contact_vec.view(self._num_envs, len(self.fingertips), 3), dim=-1
         )
@@ -515,6 +571,11 @@ class ShadowHandCustomTask(
             self.dist_reward_scale,
             self.fall_dist,
             self.object_init_pos,
+            self.actions,
+            self.action_regul_scale,
+            self.fall_penalty,
+            self.no_fall_bonus,
+            self.z_pos_scale,
         )
 
     def is_done(self) -> None:
@@ -692,6 +753,89 @@ class ShadowHandCustomTask(
 
         self.reset_buf[env_ids] = 0
 
+    def finger_control_handicap_init(
+            self,
+        # self, actions, type="partial", scales=[], fingers=[], n_fingers=None, durations=[], finger_perc=0.2, scale_mu=0.0, scale_sigma=1.0,
+    ):
+        
+        if self._handicap_cfg["type"] not in ["partial", "delayed"]:
+            logging.warn("Unvalid handicap type. Must be in [partial, total, delayed].")
+            # self._handicap = False
+            return
+
+        if self._handicap_cfg["type"] == "partial":
+            self.apply_handicap = self.apply_partial_handicap
+        else:
+            self.apply_handicap = self.apply_delayed_handicap
+
+        self._handicap_effort_scale_gauss = self._handicap_cfg["effort_scale_gauss"]
+        if self._handicap_effort_scale_gauss is not None:
+            self._handicap_effort_scales = None
+            self._handicap_effort_scale_gauss = np.asarray(self._handicap_effort_scale_gauss)
+        else:
+            self._handicap_effort_scales = self._handicap_cfg["effort_scales"]
+
+        # self._handicap_fingers = self._handicap_cfg["fingers"]
+        # self._handicap_num_fingers = len(self._handicap_fingers) if type(self._handicap_fingers) is list else self._handicap_fingers
+        
+        self._handicap_finger_p = np.asarray(self._handicap_cfg["p_handic"])
+        self._handicap_finger_p_release = np.asarray(self._handicap_cfg["p_handic_release"])
+
+        # create a view (no added memory)
+        self._handicap_finger_p_torch = torch.from_numpy(self._handicap_finger_p).float().expand(self.num_envs,-1).to(self._device)  
+        self._handicap_finger_p_release_torch = torch.from_numpy(self._handicap_finger_p_release).float().expand(self.num_envs,-1).to(self._device) 
+        
+        # self._handicap_strict = self._handicap_cfg["strict"]
+
+        self.handicap_grid = np.zeros((self.num_envs, self.num_fingertips))
+        self.handicap_grid_torch = torch.from_numpy(self.handicap_grid).to(self._device)
+    
+    def apply_partial_handicap(self):
+        #TODO: not implemented: finger selection, strict/relax selection, delayed handicap
+
+        # Bernoulli impairment pick
+        # random_grid = np.random.binomial(1, self._handicap_finger_p, (self.num_envs, self.num_fingertips))
+        random_grid_torch = torch.bernoulli(self._handicap_finger_p_torch).to(self._device)
+
+        # Bernoulli impairment release pick
+        # random_release_grid = np.random.binomial(1, self._handicap_finger_p_release, (self.num_envs, self.num_fingertips))
+        random_release_grid_torch = torch.bernoulli(self._handicap_finger_p_release_torch).to(self._device)
+
+        # release AND state (effectively released bits)
+        # eff_release_indices = np.nonzero(np.logical_and(random_release_grid, self.handicap_grid))
+        eff_release_indices_torch = torch.nonzero(torch.logical_and(random_release_grid_torch, self.handicap_grid_torch)).to(self._device)
+
+        # previous impairment state OR new impairment state (to be impaired bits)
+        # self.handicap_grid = np.logical_or(self.handicap_grid, random_grid)
+        self.handicap_grid_torch = torch.logical_or(self.handicap_grid_torch, random_grid_torch)
+
+        # effectively impaired bits (to be - effectively released)
+        # self.handicap_grid[eff_release_indices] = 0
+        self.handicap_grid_torch[eff_release_indices_torch] = 0
+
+        # compute scaling factors from distribution
+        if self._handicap_effort_scale_gauss:
+            self._handicap_effort_scales = np.random.normal(self._handicap_effort_scale_gauss[:, 0], self._handicap_effort_scale_gauss[:, 0])
+            
+        # create scaling factor grid
+        # scale_grid = np.ones((self.num_envs, len(self.actuated_dof_indices)))
+        # for idx, scale in enumerate(self._handicap_effort_scales):
+        #     scale_grid[:, self.actuated_dof_finger_map_dict[idx]] *= scale
+
+        scale_grid_torch = torch.ones((self.num_envs, len(self.actuated_dof_indices))).to(self._device)
+        for idx, scale in enumerate(self._handicap_effort_scales):
+            scale_grid_torch[:, self.actuated_dof_finger_map_dict[idx]] *= scale
+
+        # scale_grid = torch.from_numpy(scale_grid).to(self.device)
+
+        # scale action tensor
+        # self.efforts *= scale_grid
+        self.efforts *= scale_grid_torch
+    
+    # def apply_delayed_handicap(self):
+    #         print("delayed")
+    #         return
+
 
 # TorchScript functions
 
@@ -703,14 +847,36 @@ def compute_hand_reward(
     dist_reward_scale: float,
     fall_dist: float,
     object_init_pos,
+    actions,
+    action_regul_scale: float,
+    fall_penalty: float,
+    no_fall_bonus: float,
+    z_pos_scale: float,
 ):
     """Computes task rewards."""
-    goal_dist = torch.norm(object_pos - object_init_pos, p=2, dim=-1)
 
-    # Check env termination conditions, including maximum success number
-    resets = torch.where(goal_dist >= fall_dist, torch.ones_like(reset_buf), reset_buf)
+    # compute object distance to initial position
+    dist_to_init = torch.norm(object_pos - object_init_pos, p=2, dim=-1)
 
-    reward = goal_dist * dist_reward_scale
+    # reset condition
+    resets = torch.where(dist_to_init >= fall_dist, torch.ones_like(reset_buf), reset_buf)
+
+    # distance to initial position reward
+    dist_to_init_rew = dist_to_init * dist_reward_scale
+
+    # action regularization
+    action_regul = torch.sum(actions ** 2, dim=-1) * action_regul_scale
+
+    # high position reward
+    z_pos = object_pos[:, 2]
+    high_pos_rew = z_pos * z_pos_scale
+
+    # composite reward
+    reward = dist_to_init_rew + action_regul + high_pos_rew
+
+    # fall penalty - reward + penalty if too far, otherwise reward + no fall bonus
+    reward = torch.where(dist_to_init >= fall_dist, reward + fall_penalty, reward + no_fall_bonus)
+
 
     return reward, resets
 

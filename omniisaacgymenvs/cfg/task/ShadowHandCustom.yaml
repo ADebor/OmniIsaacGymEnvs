@@ -3,6 +3,21 @@ name: ShadowHandCustom
 
 physics_engine: ${..physics_engine}
 
+# custom args
+handicap: 
+  isOn: False
+  type: "partial"
+  effort_scales: [0.0, 0.0, 0.0, 0.0, 0.0]      # scaling factor of each finger
+  fingers: [0, 1, 2, 3, 4]                      # finger ids to be impaired
+  strict: False                                 # whether to always impair the fingers at the same time or not
+  p_handic: [1, 1, 1, 1, 1]           # Bernoulli p of getting impaired for each finger
+  p_handic_release: [0., 0., 0., 0., 0.]   # Bernoulli p of releasing the impairment for each finger
+  # delays: []
+  effort_scale_gauss: null                      # mu and sigma of the truncated Gaussian distribution of the scaling factor for each finger   
+  # delay_scale_gauss: ()
+
+tactile_obs_visu: True
+
 # if given, will override the device setting in gym.
 env:
   numEnvs: ${resolve_default:8192,${...num_envs}}
@@ -39,8 +54,11 @@ env:
   actionPenaltyScale: -0.0002
   #reachGoalBonus: 250
   fallDistance: 0.24
-  fallPenalty: 0.0
+  fallPenalty: -50.0
   velObsScale: 0.2
+  zPosScale: 2.0    # custom one
+  noFallBonus: 5.0  # custom one
+  contactObsScale: 5.0 # custom one
  
   objectType: "block"
   #observationType: "full" # can be "full_no_vel", "full", "openai", "full_state"
