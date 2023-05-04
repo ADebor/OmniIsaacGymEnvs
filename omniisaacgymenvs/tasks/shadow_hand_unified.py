@@ -348,15 +348,6 @@ class ShadowHandCustomTask(
         if self._handicap_is_on:
             self.apply_handicap()
 
-        if self.dummy_bool:
-            self.dummy_bool = False
-            self.efforts = torch.ones_like(self.efforts) * 0.06
-        else:
-            self.dummy_bool = True
-            self.efforts = torch.ones_like(self.efforts) * -0.1
-
-
-
         # set joint effort
         self._shadow_hands.set_joint_efforts(
             efforts=self.efforts,
@@ -592,12 +583,19 @@ class ShadowHandCustomTask(
             [0.0, 0.0, -0.70711, 0.70711], device=self.device
         )
 
+        # custom usd file path
+        # self._hand_usd_path = "../robots/usda/instanceable/tests/colortips/shadow_hand_instanceable.usd"
+        # self._hand_usd_path = "/home/adebor/isaacsim_ws/OmniIsaacGymEnvs/omniisaacgymenvs/robots/usda/instanceable/tests/colortips/shadow_hand_instanceable.usd"
+        # self._hand_usd_path = "/home/adebor/Documents/shadow_hand_instanceable.usd"
+        self._hand_usd_path = None
+
         # create ShadowHand object and set it at initial pose
         self.shadow_hand = ShadowHand(
             prim_path=self.default_zero_env_path + "/shadow_hand",
             name="shadow_hand",
             translation=hand_start_translation,
             orientation=hand_start_orientation,
+            usd_path=self._hand_usd_path,
         )
 
         # apply articulation settings to Shadow hand
