@@ -26,7 +26,6 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
 def initialize_task(config, env, init_sim=True):
     from .config_utils.sim_config import SimConfig
     sim_config = SimConfig(config)
@@ -46,6 +45,7 @@ def initialize_task(config, env, init_sim=True):
     # from omniisaacgymenvs.tasks.crazyflie import CrazyflieTask
 
     from omniisaacgymenvs.tasks.shadow_hand_unified import ShadowHandCustomTask
+    from omniisaacgymenvs.tasks.sh_effort_orientation_task import ShadowHandEffortTask
     
     # Mappings from strings to environments
     task_map = {
@@ -65,6 +65,7 @@ def initialize_task(config, env, init_sim=True):
         "ShadowHandOpenAI_FF": ShadowHandTask,
         "ShadowHandOpenAI_LSTM": ShadowHandTask,
         "ShadowHandCustom": ShadowHandCustomTask,
+        "ShadowHandOpenAI_effort": ShadowHandEffortTask,
     }
 
     cfg = sim_config.config
