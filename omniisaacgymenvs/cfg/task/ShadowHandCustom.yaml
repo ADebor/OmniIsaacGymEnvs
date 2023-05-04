@@ -16,7 +16,7 @@ handicap:
   effort_scale_gauss: null                      # mu and sigma of the truncated Gaussian distribution of the scaling factor for each finger   
   # delay_scale_gauss: ()
 
-tactile_obs_visu: True
+tactile_obs_visu: False
 
 # if given, will override the device setting in gym.
 env:
@@ -122,7 +122,7 @@ sim:
     stabilization_threshold: 0.0005
     # per-body
     density: -1
-    max_depenetration_velocity: 100.0
+    max_depenetration_velocity: 1000.0
   object:
     # -1 to use default values
     override_usd_defaults: False
