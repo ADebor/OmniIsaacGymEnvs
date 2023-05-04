@@ -47,7 +47,9 @@ class ShadowHand(Robot):
         translation: Optional[torch.tensor] = None,
         orientation: Optional[torch.tensor] = None,
     ) -> None:
+        
         self._usd_path = usd_path
+        
         self._name = name
 
         if self._usd_path is None:
@@ -58,16 +60,14 @@ class ShadowHand(Robot):
                 assets_root_path
                 + "/Isaac/Robots/ShadowHand/shadow_hand_instanceable.usd"
             )
-
+        
         self._position = (
             torch.tensor([0.0, 0.0, 0.5]) if translation is None else translation
         )
         self._orientation = (
             torch.tensor([1.0, 0.0, 0.0, 0.0]) if orientation is None else orientation
         )
-
         add_reference_to_stage(self._usd_path, prim_path)
-
         super().__init__(
             prim_path=prim_path,
             name=name,
@@ -106,6 +106,30 @@ class ShadowHand(Robot):
             "robot0_THJ1": {"stiffness": 0., "damping": 0., "max_force": 0.99},
             "robot0_THJ0": {"stiffness": 0., "damping": 0., "max_force": 0.81},
         }
+
+        # position control config:
+        # joints_config = {
+        #     "robot0_WRJ1": {"stiffness": 5, "damping": 0.5, "max_force": 4.785},
+        #     "robot0_WRJ0": {"stiffness": 5, "damping": 0.5, "max_force": 2.175},
+        #     "robot0_FFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_FFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_FFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+        #     "robot0_MFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_MFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_MFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+        #     "robot0_RFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_RFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_RFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+        #     "robot0_LFJ4": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_LFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_LFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_LFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+        #     "robot0_THJ4": {"stiffness": 1, "damping": 0.1, "max_force": 2.3722},
+        #     "robot0_THJ3": {"stiffness": 1, "damping": 0.1, "max_force": 1.45},
+        #     "robot0_THJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.99},
+        #     "robot0_THJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.99},
+        #     "robot0_THJ0": {"stiffness": 1, "damping": 0.1, "max_force": 0.81},
+        #                 }
 
         for joint_name, config in joints_config.items():
             set_drive(
