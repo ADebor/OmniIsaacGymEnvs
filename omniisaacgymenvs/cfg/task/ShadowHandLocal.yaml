@@ -1,0 +1,4 @@
+# used to create the object
+name: ShadowHandLocal
+
+physics_engine: ${..physics_engine}

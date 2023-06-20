@@ -1,9 +1,13 @@
 # used to create the object
-name: ShadowHandCustom
+name: ShadowHandGlobal
 
 physics_engine: ${..physics_engine}
 
-# custom args
+###################
+#   custom args   #
+###################
+
+# handicap configuration
 handicap: 
   isOn: False
   type: "partial"
@@ -16,7 +20,12 @@ handicap:
   effort_scale_gauss: null                      # mu and sigma of the truncated Gaussian distribution of the scaling factor for each finger   
   # delay_scale_gauss: ()
 
+# tactile data live plotting when using only one hand
 tactile_obs_visu: False
+
+###################
+# non-custom args #
+###################
 
 # if given, will override the device setting in gym.
 env:
@@ -26,6 +35,9 @@ env:
 
   # clipObservations: 5.0
   # clipActions: 1.0
+  
+  # custom
+  control_mode: "position"  # can be in ["position", "effort"]
 
   useRelativeControl: False
   dofSpeedScale: 20.0
@@ -52,7 +64,7 @@ env:
   rotRewardScale: 1.0
   rotEps: 0.1
   actionPenaltyScale: -0.0002
-  #reachGoalBonus: 250
+  reachGoalBonus: 250
   fallDistance: 0.24
   fallPenalty: -50.0
   velObsScale: 0.2
@@ -61,11 +73,11 @@ env:
   contactObsScale: 5.0 # custom one
  
   objectType: "block"
-  #observationType: "full" # can be "full_no_vel", "full", "openai", "full_state"
-  #asymmetric_observations: False
-  #successTolerance: 0.1
-  #printNumSuccesses: False
-  #maxConsecutiveSuccesses: 0
+  observationType: "full" # can be "full_no_vel", "full", "openai", "full_state", any of the formers with "intrinsic", or "intrinsic_no_proprio"
+  asymmetric_observations: False
+  successTolerance: 0.1
+  printNumSuccesses: False
+  maxConsecutiveSuccesses: 0
 
 sim:
   dt: 0.0083 # 1/120 s
