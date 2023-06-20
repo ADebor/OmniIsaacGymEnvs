@@ -10,7 +10,11 @@ We consider two ways of making the task a benchmark for assessing the adaptation
 - The position and length of the high-reward zone can change from one episode to another.
 - The physical properties of the button (stiffness,  damping, ...) can change from one episode to another.
 
-![local_bm_img](./images/local_bm_img.pdf)
+![local_bm_img](images/local_bm_img.pdf)
+
+<picture>
+  <img alt="Image Alt Text" src="images/local_bm_img.pdf">
+</picture>
 
 ## Global benchmark
 
