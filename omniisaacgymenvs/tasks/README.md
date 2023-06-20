@@ -17,4 +17,18 @@ We consider two ways of making the task a benchmark for assessing the adaptation
 
 ## Global benchmark
 
-The global benchmark consists of an adaptation of the Dactyl benchmark developed by OpenAI (TBContinued).
+The global benchmark consists of an adaptation of the Dactyl benchmark developed by OpenAI, in which the robotic hand has to orient a cubic block in the same way as a goal cube. 
+
+The forked repository proposes 4 different types of observation, all of them considering "extrinsic"[^1] sensing:
+- "`openai`": 
+- "`full_no_vel`":
+- "`full`":
+- "`full_state`":
+  
+We add two more types that consider intrinsic[^1] sensing only:
+
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/34286328/171454160-8cb6739d-162a-4c84-922d-cda04382633f.gif" width="300" height="150"/>
+</p>
+
+[^1]:
