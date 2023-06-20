@@ -10,6 +10,8 @@ We consider two ways of making the task a benchmark for assessing the adaptation
 - The position and length of the high-reward zone can change from one episode to another.
 - The physical properties of the button (stiffness,  damping, ...) can change from one episode to another.
 
+![local_bm_img](./images/local_bm_img.pdf)
+
 ## Global benchmark
 
 The global benchmark consists of an adaptation of the Dactyl benchmark developed by OpenAI (TBContinued).
