@@ -8,7 +8,7 @@ Roadmap:
 """
 
 
-from omniisaacgymenvs.tasks.shared.in_hand_manipulation_effort  import InHandManipulationTask
+from omniisaacgymenvs.tasks.shared.in_hand_manipulation_base import InHandManipulationBaseTask
 from omniisaacgymenvs.robots.articulations.shadow_hand import ShadowHand
 from omniisaacgymenvs.robots.articulations.views.shadow_hand_view import ShadowHandView
 
@@ -17,7 +17,7 @@ from omni.isaac.core.utils.torch import *
 
 import torch
 
-class ShadowHandEffortTask(InHandManipulationTask):
+class GlobalBenchmarkTask(InHandManipulationBaseTask):
     def __init__(
         self,
         name,
@@ -62,7 +62,10 @@ class ShadowHandEffortTask(InHandManipulationTask):
         self._num_actions = 20
         self._num_states = num_states
 
-        InHandManipulationTask.__init__(self, name=name, env=env)
+        self._control_mode = self._task_cfg["env"]["control_mode"]
+        print("selected control mode: ", self._control_mode)
+
+        InHandManipulationBaseTask.__init__(self, name=name, env=env)
         return
 
     def get_hand(self):
@@ -82,6 +85,7 @@ class ShadowHandEffortTask(InHandManipulationTask):
         )
         shadow_hand.set_shadow_hand_properties(stage=self._stage, shadow_hand_prim=shadow_hand.prim)
         shadow_hand.set_motor_control_mode(stage=self._stage, shadow_hand_path=shadow_hand.prim_path)
+        
         pose_dy, pose_dz = -0.39, 0.10
         return hand_start_translation, pose_dy, pose_dz
     
