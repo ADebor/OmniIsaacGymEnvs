@@ -39,4 +39,4 @@ We further add a "handicap" feature that mimics arthrosis by (to be defined).
   <img src="https://user-images.githubusercontent.com/34286328/171454160-8cb6739d-162a-4c84-922d-cda04382633f.gif" width="300" height="150"/>
 </p>
 
-[^1]: We refer to [this](https://sbrl.cs.columbia.edu/) for the notions of "intrinsic" and "extrinsic" sensing, which do not really make sense in the context of simulation. As we add tactile data though, we use these terms to discriminate between the different observation types.
+[^1]: We refer to [this](https://sbrl.cs.columbia.edu/) for the notions of "intrinsic" and "extrinsic" sensing, which do not really make sense in the context of simulation. As we add tactile data though, we use these terms to discriminate between the different observation types. Note: in [this](https://sbrl.cs.columbia.edu/), the observations are [dof positions, dof setpoints, binary contacts] for the actor, and the same as for the actor + [object position, object velocity, net contact force for each finger] for the critic.
