@@ -42,7 +42,7 @@ import math
 
 import omni.replicator.isaac as dr
 
-class InHandManipulationTask(RLTask):
+class InHandManipulationBaseTask(RLTask):
     def __init__(
         self,
         name,
@@ -180,21 +180,20 @@ class InHandManipulationTask(RLTask):
         self.actuated_dof_indices = self._hands.actuated_dof_indices 
 
         # EFFORT MODE MODIFICATION #
-        # if self._control_mode = effort:
-        self._hands.switch_control_mode(mode="effort")
-        self._hands.set_effort_modes(mode="force")
-        effort_limits = self._shadow_hands.get_max_efforts()[0]
-        self.hand_dof_effort_limits = effort_limits[self.actuated_dof_indices] 
-        self.hand_dof_default_eff = torch.zeros(
-            self.num_hand_dofs, dtype=torch.float, device=self.device
-        )
-        ############################
-
-        # self.hand_dof_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
-
-        # self.prev_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
-        # self.cur_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
+        if self._control_mode == "effort":
+            self._hands.switch_control_mode(mode="effort")
+            self._hands.set_effort_modes(mode="force")
+            effort_limits = self._shadow_hands.get_max_efforts()[0]
+            self.hand_dof_effort_limits = effort_limits[self.actuated_dof_indices] 
+            self.hand_dof_default_eff = torch.zeros(
+                self.num_hand_dofs, dtype=torch.float, device=self.device
+            )
         
+        else:
+            self.hand_dof_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
+            self.prev_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
+            self.cur_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
+            
         dof_limits = self._hands.get_dof_limits()
         self.hand_dof_lower_limits, self.hand_dof_upper_limits = torch.t(dof_limits[0].to(self.device))
 
@@ -267,36 +266,36 @@ class InHandManipulationTask(RLTask):
         self.actions = actions.clone().to(self.device)
         
         # EFFORT MODE MODIFICATION #
-        self.efforts = tensor_clamp(
-            self.actions,
-            min_t=-self.hand_dof_effort_limits,
-            max_t=self.hand_dof_effort_limits,
-        )
-        self._shadow_hands.set_joint_efforts(
-            efforts=self.efforts,
-            indices=None,  # all prims in the view
-            joint_indices=self.actuated_dof_indices,
-        )
-        #############################
+        if self._control_mode == "effort":
+            self.efforts = tensor_clamp(
+                self.actions,
+                min_t=-self.hand_dof_effort_limits,
+                max_t=self.hand_dof_effort_limits,
+            )
+            self._shadow_hands.set_joint_efforts(
+                efforts=self.efforts,
+                indices=None,  # all prims in the view
+                joint_indices=self.actuated_dof_indices,
+            )
+        
+        else:
+            if self.use_relative_control:
+                targets = self.prev_targets[:, self.actuated_dof_indices] + self.hand_dof_speed_scale * self.dt * self.actions
+                self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(targets,
+                    self.hand_dof_lower_limits[self.actuated_dof_indices], self.hand_dof_upper_limits[self.actuated_dof_indices])
+            else:
+                self.cur_targets[:, self.actuated_dof_indices] = scale(self.actions,
+                    self.hand_dof_lower_limits[self.actuated_dof_indices], self.hand_dof_upper_limits[self.actuated_dof_indices])
+                self.cur_targets[:, self.actuated_dof_indices] = self.act_moving_average * self.cur_targets[:, self.actuated_dof_indices] + \
+                    (1.0 - self.act_moving_average) * self.prev_targets[:, self.actuated_dof_indices]
+                self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(self.cur_targets[:, self.actuated_dof_indices],
+                    self.hand_dof_lower_limits[self.actuated_dof_indices], self.hand_dof_upper_limits[self.actuated_dof_indices])
 
+            self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
 
-        # if self.use_relative_control:
-        #     targets = self.prev_targets[:, self.actuated_dof_indices] + self.hand_dof_speed_scale * self.dt * self.actions
-        #     self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(targets,
-        #         self.hand_dof_lower_limits[self.actuated_dof_indices], self.hand_dof_upper_limits[self.actuated_dof_indices])
-        # else:
-        #     self.cur_targets[:, self.actuated_dof_indices] = scale(self.actions,
-        #         self.hand_dof_lower_limits[self.actuated_dof_indices], self.hand_dof_upper_limits[self.actuated_dof_indices])
-        #     self.cur_targets[:, self.actuated_dof_indices] = self.act_moving_average * self.cur_targets[:, self.actuated_dof_indices] + \
-        #         (1.0 - self.act_moving_average) * self.prev_targets[:, self.actuated_dof_indices]
-        #     self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(self.cur_targets[:, self.actuated_dof_indices],
-        #         self.hand_dof_lower_limits[self.actuated_dof_indices], self.hand_dof_upper_limits[self.actuated_dof_indices])
-
-        # self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
-
-        # self._hands.set_joint_position_targets(
-        #     self.cur_targets[:, self.actuated_dof_indices], indices=None, joint_indices=self.actuated_dof_indices
-        # )
+            self._hands.set_joint_position_targets(
+                self.cur_targets[:, self.actuated_dof_indices], indices=None, joint_indices=self.actuated_dof_indices
+            )
 
         if self._dr_randomizer.randomize:
             rand_envs = torch.where(self.randomization_buf >= self._dr_randomizer.min_frequency, torch.ones_like(self.randomization_buf), torch.zeros_like(self.randomization_buf))
@@ -352,27 +351,27 @@ class InHandManipulationTask(RLTask):
         dof_vel[env_ids, :] = self.hand_dof_default_vel + \
             self.reset_dof_vel_noise * rand_floats[:, 5+self.num_hand_dofs:5+self.num_hand_dofs*2]
 
-        # self.prev_targets[env_ids, :self.num_hand_dofs] = pos
-        # self.cur_targets[env_ids, :self.num_hand_dofs] = pos
-        # self.hand_dof_targets[env_ids, :] = pos
+        # EFFORT MODE MODIFICATION #
+        if self._control_mode == "effort":
+            eff = (
+                self.hand_dof_default_eff
+                + self.reset_dof_eff_noise  # 0.0
+                * rand_floats[:, 5 + self.num_hand_dofs * 2 : 5 + self.num_hand_dofs * 3]
+            )
+            dof_eff = torch.zeros((self._num_envs, self.num_hand_dofs), device=self.device)
+            dof_eff[env_ids, :] = eff
+            self._shadow_hands.set_joint_efforts(
+                efforts=dof_eff[env_ids], indices=indices, joint_indices=None
+            )
+        else:
+            self.prev_targets[env_ids, :self.num_hand_dofs] = pos
+            self.cur_targets[env_ids, :self.num_hand_dofs] = pos
+            self.hand_dof_targets[env_ids, :] = pos
 
-        # self._hands.set_joint_position_targets(self.hand_dof_targets[env_ids], indices)
+            self._hands.set_joint_position_targets(self.hand_dof_targets[env_ids], indices)
+        
         self._hands.set_joint_positions(dof_pos[env_ids], indices)
         self._hands.set_joint_velocities(dof_vel[env_ids], indices)
-
-        # EFFORT MODE MODIFICATION #
-        eff = (
-            self.hand_dof_default_eff
-            + self.reset_dof_eff_noise  # 0.0
-            * rand_floats[:, 5 + self.num_hand_dofs * 2 : 5 + self.num_hand_dofs * 3]
-        )
-        dof_eff = torch.zeros((self._num_envs, self.num_hand_dofs), device=self.device)
-        dof_eff[env_ids, :] = eff
-        self._shadow_hands.set_joint_efforts(
-            efforts=dof_eff[env_ids], indices=indices, joint_indices=None
-        )
-        #############################
-
 
         self.progress_buf[env_ids] = 0
         self.reset_buf[env_ids] = 0
