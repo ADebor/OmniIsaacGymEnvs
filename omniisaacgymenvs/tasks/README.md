@@ -28,10 +28,14 @@ The forked repository proposes 4 different types of observations (for the policy
   
 We add 2 more types that use "intrinsic"[^1] sensing:
 
-- "`intrinsic`": same as "`openai`" - fingertip positions (15) + pressure/tactile sensing data added:
+- "`intrinsic_openai`": same as "`openai`" - fingertip positions (15) + pressure/tactile sensing data added:
     - one resulting force scalar per fingertip (5), or
     - one force, position, and orientation per contact point (varying size)  (to be implemented)
-- "`intrinsic_no_proprio`": only pressure/tactile sensing data (one of the two modalities defined right above) and object/target-related data (different possibilities considering positions, orientations, relative orientations, and velocities).
+- "`intrinsic_****_no_proprio`": only pressure/tactile sensing data (one of the two modalities defined right above) and object/target-related data (different possibilities considering positions, orientations, relative orientations, and velocities:
+    - "`intrinsic_openai_no_proprio`",
+    - ...
+ 
+  ).
 
 We further add a "handicap" feature that mimics arthrosis by (to be defined).
 
