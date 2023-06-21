@@ -26,9 +26,9 @@ The forked repository proposes 4 different types of observations (for the policy
 - "`full`": same as "`full_no_vel`" + hand joints velocities (24), object velocity (3), object angular velocity (4), fingertip orientations (20), fingertip velocities (5 * ( 3 linear + 3 angular ) = 30) 
 - "`full_state`": same as "`full`" + torque sensing data (30)
   
-We add 5 more types that add "intrinsic"[^1] sensing:
+We add 2 more types that use "intrinsic"[^1] sensing:
 
-- "`intrinsic-*`": same as the 4 first ones + pressure/tactile sensing data added:
+- "`intrinsic`": same as "`openai`" - fingertip positions (15) + pressure/tactile sensing data added:
     - one resulting force scalar per fingertip (5), or
     - one force, position, and orientation per contact point (varying size)  (to be implemented)
 - "`intrinsic_no_proprio`": only pressure/tactile sensing data (one of the two modalities defined right above) and object/target-related data (different possibilities considering positions, orientations, relative orientations, and velocities).
