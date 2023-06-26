@@ -24,14 +24,23 @@ The forked repository proposes 4 different types of observations (for the policy
 - "`openai`": fingertip positions (15), object position (3), relative target orientation (4) (and actions taken (20))
 - "`full_no_vel`": fingertip positions (15), dof positions (hand joints angles) (24), object position (3), object orientation (4), target position (3), target orientation (4), relative target orientation (4) (and actions taken (20))
 - "`full`": same as "`full_no_vel`" + hand joints velocities (24), object velocity (3), object angular velocity (4), fingertip orientations (20), fingertip velocities (5 * ( 3 linear + 3 angular ) = 30) 
-- "`full_state`": same as "`full`" + torque sensing data (30)
+- "`full_state`": same as "`full`" + torque sensing data (30) (joint torque sensors not working in Isaac sim, still)
   
-We add 5 more types that add "intrinsic"[^1] sensing:
+We add 11 more types that use "intrinsic"[^1] sensing:
 
-- "`intrinsic-*`": same as the 4 first ones + pressure/tactile sensing data added:
+- "`intrinsic_openai`": same as "`openai`" + pressure/tactile sensing data added:
     - one resulting force scalar per fingertip (5), or
     - one force, position, and orientation per contact point (varying size)  (to be implemented)
-- "`intrinsic_no_proprio`": only pressure/tactile sensing data (one of the two modalities defined right above) and object/target-related data (different possibilities considering positions, orientations, relative orientations, and velocities).
+- "`intrinsic_openai_strict`": same as "`intrinsic_openai`" - fingertip positions (15)
+- "`intrinsic_full_no_vel`": same as "`full_no_vel`" + pressure/tactile sensing data added
+- "`intrinsic_full_no_vel_strict`": same as "`intrinsic_full_no_vel`" - fingertip positions (15)
+- "`intrinsic_full_no_vel_strict_no_proprio`": same as "`intrinsic_full_no_vel_strict`" - dof positions (24) 
+- "`intrinsic_full`": same as "`full`" + pressure/tactile sensing data added
+- "`intrinsic_full_strict`": same as "`intrinsic_full`" - fingertip positions (15) - fingertip orientations (20) - fingertip velocities (30)
+- "`intrinsic_full_strict_no_proprio`": same as "`intrinsic_full_strict`" - dof positions (24) - dof velocities (24)
+- "`intrinsic_full_state`": same as "`full_state`" + pressure/tactile sensing data added
+- "`intrinsic_full_state_strict`": same as "`intrinsic_full_state`" - fingertip positions (15) - fingertip orientations (20) - fingertip velocities (30)
+- "`intrinsic_full_state_strict_no_proprio`": same as "`intrinsic_full_state_strict`" - dof positions (24) - dof velocities (24) - torque sensing data (30)
 
 We further add a "handicap" feature that mimics arthrosis by (to be defined).
 
