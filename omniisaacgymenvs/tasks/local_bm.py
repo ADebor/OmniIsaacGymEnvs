@@ -35,7 +35,6 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 plt.ion()
-import logging
 
 
 class LocalBenchmarkTask(
@@ -57,10 +56,6 @@ class LocalBenchmarkTask(
         self._cfg = sim_config.config
         self._task_cfg = sim_config.task_config
 
-        # assert manipulated object type
-        # self.object_type = self._task_cfg["env"]["objectType"]
-        # assert self.object_type in ["block"]
-
         # set object and force obs scale factors
         # self.object_scale = torch.tensor([1.0, 1.0, 1.0])
         self.force_torque_obs_scale = 10
@@ -68,10 +63,6 @@ class LocalBenchmarkTask(
         # get fingertips info
         self.fingertips = [
             "robot0_ffdistal",
-            # "robot0_mfdistal",
-            # "robot0_rfdistal",
-            # "robot0_lfdistal",
-            # "robot0_thdistal",
         ]
         self.num_fingertips = len(self.fingertips)
 
@@ -100,16 +91,19 @@ class LocalBenchmarkTask(
         # get cloning params - number of envs and spacing
         self._num_envs = self._task_cfg["env"]["numEnvs"]
         self._env_spacing = self._task_cfg["env"]["envSpacing"]
-
+        self.max_episode_length = self._task_cfg["env"]["episodeLength"]
+        self.max_consecutive_successes = self._task_cfg["env"][
+            "maxConsecutiveSuccesses"
+        ]
+        self.success_reward = self._task_cfg["env"]["successReward"]
+        self.failure_reward = self._task_cfg["env"]["failureReward"]
         # get metrics scaling factors and parameters
-        # self.dist_reward_scale = self._task_cfg["env"]["distRewardScale"]
         self.action_regul_scale = self._task_cfg["env"]["actionPenaltyScale"]
+        self.success_tolerance = self._task_cfg["env"]["successTolerance"]
         self.fall_dist = self._task_cfg["env"]["fallDistance"]
         self.throw_dist = self._task_cfg["env"]["throwDistance"]
 
-        # self.fall_penalty = self._task_cfg["env"]["fallPenalty"]
-        # self.no_fall_bonus = self._task_cfg["env"]["noFallBonus"]
-        # self.z_pos_scale = self._task_cfg["env"]["zPosScale"]
+        self.fall_penalty = self._task_cfg["env"]["fallPenalty"]
         self.contact_obs_scale = self._task_cfg["env"]["contactObsScale"]
 
         # get observation scaling factors
@@ -121,8 +115,6 @@ class LocalBenchmarkTask(
         self.reset_high_reward_zone_pos_noise = self._task_cfg["env"][
             "resetHighRewardZonePosNoise"
         ]
-        # self.reset_obj_pos_noise = self._task_cfg["env"]["resetPositionNoise"]
-        # self.reset_obj_rot_noise = self._task_cfg["env"]["resetRotationNoise"]
 
         # get shadow hand finger reset noise params
         self.reset_dof_pos_noise = self._task_cfg["env"]["resetDofPosRandomInterval"]
@@ -155,12 +147,6 @@ class LocalBenchmarkTask(
         self.z_unit_tensor = torch.tensor(
             [0, 0, 1], dtype=torch.float, device=self.device
         ).repeat((self.num_envs, 1))
-        # self.x_unit_tensor = torch.tensor(
-        #     [1, 0, 0], dtype=torch.float, device=self.device
-        # ).repeat((self.num_envs, 1))
-        # self.y_unit_tensor = torch.tensor(
-        #     [0, 1, 0], dtype=torch.float, device=self.device
-        # ).repeat((self.num_envs, 1))
 
         self.av_factor = torch.tensor(
             self.av_factor, dtype=torch.float, device=self.device
@@ -181,32 +167,6 @@ class LocalBenchmarkTask(
             self.env0_tactile_ax.tick_params(axis="x", labelrotation=45)
             self.env0_tactile_fig.suptitle("env0 - Hand-related observations")
 
-        # # handicap init
-        # self._handicap_is_on = self._task_cfg["handicap"]["isOn"]
-        # if self._handicap_is_on:
-        #     self._handicap_cfg = {
-        #         "type": self._task_cfg["handicap"]["type"],
-        #         "effort_scales": self._task_cfg["handicap"]["effort_scales"],
-        #         "fingers": self._task_cfg["handicap"]["fingers"],
-        #         "strict": self._task_cfg["handicap"]["strict"],
-        #         "p_handic": self._task_cfg["handicap"]["p_handic"],
-        #         "p_handic_release": self._task_cfg["handicap"]["p_handic_release"],
-        #         # "delays": self._task_cfg["handicap"]["delays"],
-        #         "effort_scale_gauss": self._task_cfg["handicap"]["effort_scale_gauss"],
-        #         # "delay_scale_gauss": self._task_cfg["handicap"]["delay_scale_gauss"],
-        #     }
-
-        #     self.finger_control_handicap_init()
-
-        #     # map dict of actuated dof indices and finger id (from FF to TH)
-        #     self.actuated_dof_finger_map_dict = {
-        #         0: [2, 7, 12],  # FF
-        #         1: [3, 8, 13],  # MF
-        #         2: [4, 9, 14],  # RF
-        #         3: [5, 10, 15, 20 - 3],  # LF NB: -3 - 17,18,19 not actuated
-        #         4: [6, 11, 16, 21 - 3, 23 - 4],  # TH NB: -4 - 22 not actuated either
-        #     }
-
     def set_up_scene(self, scene, replicate_physics=True) -> None:
         """
         Implements environment setup.
@@ -216,21 +176,24 @@ class LocalBenchmarkTask(
             replicate_physics (bool, optional): Bool to clone physics using PhysX API for better performance. Defaults to True.
         """
 
-        # self._cs = _sensor.acquire_contact_sensor_interface()
-
         # get USD stage, assets path and initialization params
         self._stage = get_current_stage()
         self._assets_root_path = get_assets_root_path()
 
         # get shadow hand Robot
         # hand_start_translation, pose_dy, pose_dz = self.get_hand()
-        # get shadow hand finger Robot
+        # get shadow finger Robot
         finger_start_translation, pose_dz = self.get_finger()
 
         # get manipulated object
         # self.get_object(hand_start_translation, pose_dy, pose_dz)
         self.get_object(finger_start_translation, pose_dz)
 
+        # define target tensor (tensor containing the high-reward zone locations)
+        self.target_high_thresh = pose_dz + 2.0 #TODO check that these distances make sense
+        self.target_low_thresh = pose_dz - 2.0
+        # self.targets = torch.rand(self.num_envs) * (self.target_high_thresh - self.target_low_thresh) + self.target_low_thresh
+        self.targets = torch_rand_float(self.target_low_thresh, self.target_high_thresh, self.num_envs, device=self.device)
         # clones envs
         replicate_physics = False if self._dr_randomizer.randomize else True
         super().set_up_scene(scene, replicate_physics)
@@ -239,39 +202,10 @@ class LocalBenchmarkTask(
         self._shadow_fingers = self.get_finger_view()
         scene.add(self._shadow_fingers)
 
-        # get fingers names
-        # if self._tactile_obs_visu_is_on:
-        #     self.finger_names = self._shadow_hands._fingers.prim_paths
-        #     self.finger_names = self.finger_names[:5]
-        #     self.finger_names = [finger_name[30:] for finger_name in self.finger_names]
-        #     bar_colors = ["tab:red", "tab:cyan", "tab:pink", "tab:olive", "tab:purple"]
-        #     self.env0_tactile_bars = self.env0_tactile_ax.bar(
-        #         self.finger_names, [0.0, 0.0, 0.0, 0.0, 0.0], color=bar_colors
-        #     )
-
         if self._tactile_obs_visu_is_on:
             self.env0_tactile_bars = self.env0_tactile_ax.bar(
                 self.finger_names, [0.0], color=["tab:red"]
             )
-
-        # create contact sensors
-        # self._contact_sensors = {}
-        # self.env_name_offset = self.default_zero_env_path.find("env_")
-        # self._contact_sensor_translation = Gf.Vec3d(0.0, 0.0, 0.026)
-
-        # for prim_path in self._shadow_hands.prim_paths:
-        #     env_name = prim_path[
-        #         self.env_name_offset : self.env_name_offset + len("env_") + 1
-        #     ]
-        #     self._contact_sensors[env_name] = {}
-        #     for finger_name in self.fingertips:
-        #         fingertip_path = prim_path + "/" + finger_name
-        #         self._contact_sensors[env_name][finger_name] = FingertipContactSensor(
-        #             self._cs,
-        #             fingertip_path,
-        #             radius=0.01,
-        #             translation=self._contact_sensor_translation,
-        #         )
 
         # create a view of the cloned objects and add it to the scene
         self._buttons = RigidPrimView(
@@ -410,33 +344,6 @@ class LocalBenchmarkTask(
             self.env0_tactile_fig.canvas.flush_events()
 
         return observations
-
-    # def get_object_observations(self):
-    #     """Gets manipulated object-related observations."""
-    #     # get data
-    #     self.object_pos, self.object_rot = self._objects.get_world_poses(
-    #         clone=False
-    #     )  # NB: if clone then returns a clone of the internal buffer
-    #     self.object_pos -= self._env_pos
-    #     self.object_velocities = self._objects.get_velocities(clone=False)
-    #     self.object_linvel = self.object_velocities[:, 0:3]
-    #     self.object_angvel = self.object_velocities[:, 3:6]
-
-    #     # populate observation buffer
-    #     self.obs_buf[
-    #         :, self.obs_buf_offset + 0 : self.obs_buf_offset + 3
-    #     ] = self.object_pos
-    #     self.obs_buf[
-    #         :, self.obs_buf_offset + 3 : self.obs_buf_offset + 7
-    #     ] = self.object_rot
-    #     self.obs_buf[
-    #         :, self.obs_buf_offset + 7 : self.obs_buf_offset + 10
-    #     ] = self.object_linvel
-    #     self.obs_buf[:, self.obs_buf_offset + 10 : self.obs_buf_offset + 13] = (
-    #         self.object_angvel * self.vel_obs_scale
-    #     )
-
-    #     self.obs_buf_offset += 13
 
     def get_button_observations(self):
         """Gets manipulated button-related observations."""
@@ -581,32 +488,6 @@ class LocalBenchmarkTask(
             + self._num_force_val_obs,
         ] = net_contact_val
 
-        # detailed force sensors
-        # for env, sensor_dict in self._contact_sensors.items():
-        #     for finger, sensor in sensor_dict.items():
-        #         (
-        #             force_val,
-        #             direction,
-        #             impulses,
-        #             dts,
-        #             normals,
-        #             positions,
-        #             reading_ts,
-        #             sim_ts,
-        #         ) = sensor.get_data()
-
-        #         print(
-        #             "-- Fingertip sensor for finger {} in env {} --\n".format(
-        #                 finger, env
-        #             )
-        #             + "force: {} \n ".format(force_val)
-        #             + "impulses: {} \n ".format(impulses)
-        #             + "direction: {} \n ".format(direction)
-        #             + "from normals: {} \n ".format(normals)
-        #             + "reading time: {} \n ".format(reading_ts)
-        #             + "sim time: {} \n".format(sim_ts)
-        #         )
-
         return
 
     def calculate_metrics(self) -> None:
@@ -615,68 +496,28 @@ class LocalBenchmarkTask(
         """
         self.rew_buf[:], self.reset_buf[:] = compute_finger_reward(
             self.reset_buf,
+            self.reset_goal_buf, 
             self.button_pos,
-            # self.dist_reward_scale,
+            self.targets,
+            self.consecutive_successes,
             self.fall_dist,
-            self.throw_dist,
+            self.fall_penalty,
             self.button_init_pos,
             self.actions,
             self.action_regul_scale,
-            # self.fall_penalty,
-            # self.no_fall_bonus,
-            # self.z_pos_scale,
+            self.success_tolerance,
+            self.success_reward,
+            self.failure_reward,
+            self.max_consecutive_successes,
+            self.max_episode_length,
+            self.av_factor,
         )
-
+      
     def is_done(self) -> None:
         """
         Implement logic to update dones/reset buffer.
         """
         pass
-
-    # def get_hand(self):
-    #     """Creates ShadowHand instance and set initial pose."""
-    #     # set Shadow hand initial position and orientation
-    #     hand_start_translation = torch.tensor([0.0, 0.0, 0.5], device=self.device)
-    #     hand_start_orientation = torch.tensor(
-    #         [0.0, 0.0, -0.70711, 0.70711], device=self.device
-    #     )
-
-    #     # custom usd file path
-    #     # self._hand_usd_path = "../robots/usda/instanceable/tests/colortips/shadow_hand_instanceable.usd"
-    #     # self._hand_usd_path = "/home/adebor/isaacsim_ws/OmniIsaacGymEnvs/omniisaacgymenvs/robots/usda/instanceable/tests/colortips/shadow_hand_instanceable.usd"
-    #     # self._hand_usd_path = "/home/adebor/Documents/shadow_hand_instanceable.usd"
-    #     self._hand_usd_path = None
-
-    #     # create ShadowHand object and set it at initial pose
-    #     self.shadow_hand = ShadowHand(
-    #         prim_path=self.default_zero_env_path + "/shadow_hand",
-    #         name="shadow_hand",
-    #         translation=hand_start_translation,
-    #         orientation=hand_start_orientation,
-    #         usd_path=self._hand_usd_path,
-    #     )
-
-    #     # apply articulation settings to Shadow hand
-    #     self._sim_config.apply_articulation_settings(
-    #         "shadow_hand",
-    #         get_prim_at_path(self.shadow_hand.prim_path),
-    #         self._sim_config.parse_actor_config("shadow_hand"),
-    #     )
-
-    #     # set Shadow hand properties
-    #     self.shadow_hand.set_shadow_hand_properties(
-    #         stage=self._stage, shadow_hand_prim=self.shadow_hand.prim
-    #     )
-
-    #     # set motor control mode for the Shadow hand TODO: I don't know how this works exactly - set position target control...
-    #     self.shadow_hand.set_motor_control_mode(
-    #         stage=self._stage, shadow_hand_path=self.shadow_hand.prim_path
-    #     )
-
-    #     # set offset of the object to be manipulated (TODO: why here?)
-    #     pose_dy, pose_dz = -0.39, 0.10
-
-    #     return hand_start_translation, pose_dy, pose_dz
 
     def get_finger(self):
         """Creates ShadowFinger instance and sets initial pose."""
@@ -719,25 +560,6 @@ class LocalBenchmarkTask(
 
         return finger_start_translation, pose_dz
 
-    # def get_hand_view(self, scene):
-    #     """Creates view of the cloned hands.
-
-    #     Args:
-    #         scene (Scene): Scene to add the view.
-
-    #     Returns:
-    #         ArticulationView: Cloned hands view.
-    #     """
-    #     # create a view of the Shadow hand
-    #     hand_view = ShadowHandView(
-    #         prim_paths_expr="/World/envs/.*/shadow_hand", name="shadow_hand_view"
-    #     )
-
-    #     # add the view of the fingers to the scene
-    #     scene.add(hand_view._fingers)
-
-    #     return hand_view
-
     def get_finger_view(self):
         """Creates a view of the cloned fingers"""
         finger_view = ShadowFingerView(
@@ -746,45 +568,6 @@ class LocalBenchmarkTask(
 
         return finger_view
 
-    # def get_object(self, hand_start_translation, pose_dy, pose_dz):
-    #     """Creates manipulated object prim.
-
-    #     Args:
-    #         hand_start_translation (torch.Tensor): Hand starting translation.
-    #         pose_dy (float): Object starting offset along y-axis.
-    #         pose_dz (float): Object starting offset along z-axis.
-    #     """
-    #     # get hand translation and object offset to set object translation
-    #     self.object_start_translation = hand_start_translation.clone()
-    #     self.object_start_translation[1] += pose_dy
-    #     self.object_start_translation[2] += pose_dz
-
-    #     # set object orientation
-    #     self.object_start_orientation = torch.tensor(
-    #         [1.0, 0.0, 0.0, 0.0], device=self.device
-    #     )
-
-    #     # get object asset and add reference to stage
-    #     self.object_usd_path = (
-    #         f"{self._assets_root_path}/Isaac/Props/Blocks/block_instanceable.usd"
-    #     )
-    #     add_reference_to_stage(
-    #         self.object_usd_path, self.default_zero_env_path + "/object"
-    #     )
-
-    #     # create object prim
-    #     obj = XFormPrim(
-    #         prim_path=self.default_zero_env_path + "/object/object",
-    #         name="object",
-    #         translation=self.object_start_translation,
-    #         orientation=self.object_start_orientation,
-    #         scale=self.object_scale,
-    #     )
-    #     self._sim_config.apply_articulation_settings(
-    #         "object",
-    #         get_prim_at_path(obj.prim_path),
-    #         self._sim_config.parse_actor_config("object"),
-    #     )
     def get_object(self, finger_start_translation, pose_dz):
         """Creates manipulated button"""
         self.object_start_translation = finger_start_translation.clone()
@@ -817,72 +600,77 @@ class LocalBenchmarkTask(
         )
 
     def reset_idx(self, env_ids):
-        """Resets environments (Shadow hands and manipulated objects) specified as argument.
+        """Resets environments (Shadow fingers and manipulated buttons) specified as argument.
 
         Args:
             env_ids (torch.Tensor): IDs of the cloned environments to be reset.
         """
         indices = env_ids.to(dtype=torch.int32)
 
-        # create noise - (obj_pos_x, obj_pos_y, obj_pos_z, obj_rot_x, obj_rot_y,
-        #               hand_pos_1, ..., hand_pos_#dof,
-        #               hand_vel_1, ..., hand_vel_#dof,
-        #               )
-        rand_floats = torch_rand_float(
-            -1.0, 1.0, (len(env_ids), self.num_hand_dofs * 3 + 5), device=self.device
+        # reset targets
+        self.targets[indices] = torch_rand_float(
+            self.target_low_thresh, self.target_high_thresh, len(env_ids), device=self.device
         )
 
-        # (noisy) reset of manipulated object - pos, rot, and vel
-        new_object_pos = (
+        # create noise - (obj_pos_z,
+        #               finger_pos_1, ..., finger_pos_#dof,
+        #               finger_vel_1, ..., finger_vel_#dof,
+        #               finger_eff_1, ..., finger_eff_#dof,
+        #               )
+        rand_floats = torch_rand_float(
+            -1.0, 1.0, (len(env_ids), self.num_finger_dofs * 3 + 1), device=self.device
+        )
+
+        # (noisy) reset of manipulated button - z-pos
+        new_button_pos = (
             self.object_init_pos[env_ids]
-            + self.reset_obj_pos_noise * rand_floats[:, 0:3]
+            + self.reset_obj_pos_noise * rand_floats[:, 0:1]
             + self._env_pos[env_ids]
         )  # add noise to default pos
-        new_object_rot = randomize_rotation(
-            rand_floats[:, 3],
-            rand_floats[:, 4],
-            self.x_unit_tensor[env_ids],
-            self.y_unit_tensor[env_ids],
-        )  # randomize rot
-        self._objects.set_world_poses(new_object_pos, new_object_rot, indices)
 
-        object_velocities = torch.zeros_like(
-            self.object_init_velocities, dtype=torch.float, device=self.device
+        self._buttons.set_world_poses(positions=new_button_pos, indices=indices)
+
+        button_velocities = torch.zeros_like(
+            self.button_init_velocities, dtype=torch.float, device=self.device
         )  # zero vel
-        self._objects.set_velocities(object_velocities[env_ids], indices)
+        self._buttons.set_velocities(button_velocities[env_ids], indices)
 
-        # (noisy) reset of Shadow hand - pos, vel, and efforts
-        delta_max = self.hand_dof_pos_upper_limits - self.hand_dof_default_pos
-        delta_min = self.hand_dof_pos_lower_limits - self.hand_dof_default_pos
+        # (noisy) reset of Shadow finger - pos, vel, and efforts
+        delta_max = self.finger_dof_pos_upper_limits - self.finger_dof_default_pos
+        delta_min = self.finger_dof_pos_lower_limits - self.finger_dof_default_pos
         rand_delta = delta_min + (delta_max - delta_min) * 0.5 * (
-            rand_floats[:, 5 : 5 + self.num_hand_dofs] + 1.0
+            rand_floats[:, 1 : 1 + self.num_finger_dofs] + 1.0
         )
 
         pos = (
-            self.hand_dof_default_pos + self.reset_dof_pos_noise * rand_delta
+            self.finger_dof_default_pos + self.reset_dof_pos_noise * rand_delta
         )  # add noise to default pos
-        dof_pos = torch.zeros((self.num_envs, self.num_hand_dofs), device=self.device)
+        dof_pos = torch.zeros((self.num_envs, self.num_finger_dofs), device=self.device)
         dof_pos[env_ids, :] = pos
-        self._shadow_hands.set_joint_positions(dof_pos[env_ids], indices)
+        self._shadow_fingers.set_joint_positions(dof_pos[env_ids], indices)
 
         vel = (
-            self.hand_dof_default_vel
+            self.finger_dof_default_vel
             + self.reset_dof_vel_noise
-            * rand_floats[:, 5 + self.num_hand_dofs : 5 + self.num_hand_dofs * 2]
+            * rand_floats[:, 5 + self.num_finger_dofs : 5 + self.num_finger_dofs * 2]
         )  # add noise to default vel
-        dof_vel = torch.zeros((self.num_envs, self.num_hand_dofs), device=self.device)
+        dof_vel = torch.zeros((self.num_envs, self.num_finger_dofs), device=self.device)
         dof_vel[env_ids, :] = vel
-        self._shadow_hands.set_joint_velocities(dof_vel[env_ids], indices)
+        self._shadow_fingers.set_joint_velocities(dof_vel[env_ids], indices)
 
         # TODO: reset hand's joint efforts - check if works
         eff = (
-            self.hand_dof_default_eff
+            self.finger_dof_default_eff
             + self.reset_dof_eff_noise  # 0.0
-            * rand_floats[:, 5 + self.num_hand_dofs * 2 : 5 + self.num_hand_dofs * 3]
+            * rand_floats[
+                :, 5 + self.num_finger_dofs * 2 : 5 + self.num_finger_dofs * 3
+            ]
         )
-        dof_eff = torch.zeros((self._num_envs, self.num_hand_dofs), device=self.device)
+        dof_eff = torch.zeros(
+            (self._num_envs, self.num_finger_dofs), device=self.device
+        )
         dof_eff[env_ids, :] = eff
-        self._shadow_hands.set_joint_efforts(
+        self._shadow_fingers.set_joint_efforts(
             efforts=dof_eff[env_ids], indices=indices, joint_indices=None
         )
 
@@ -918,7 +706,7 @@ def compute_finger_reward(
     ###############
 
     # goal reward
-    goal_dist = torch.norm(button_pos - target_pos, p=2, dim=-1)
+    goal_dist = torch.norm(button_pos[:, 2] - target_pos, p=2, dim=-1)
 
     dist_rew = torch.where(
         goal_dist <= success_tolerance,
