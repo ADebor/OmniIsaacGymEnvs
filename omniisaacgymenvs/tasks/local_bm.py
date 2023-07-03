@@ -67,7 +67,7 @@ class LocalBenchmarkTask(
 
         # set number of observations and actions
         # self._num_button_observations = 13  # (pos:3, rot:4, linvel:3, angvel:3)
-        self._num_button_observations = 1  # relative vertical position ?
+        self._num_button_observations = 7  # relative vertical position ?
         self._num_force_direction_obs = 15 / 5
         self._num_force_val_obs = 5 / 5
         self._num_tactile_observations = (
@@ -85,6 +85,7 @@ class LocalBenchmarkTask(
             + self._num_dof_observations
             + self._num_fingertip_observations
         )
+        
         self._num_actions = 3  # or 1 if phalange not considered?
 
         # get cloning params - number of envs and spacing
@@ -260,20 +261,19 @@ class LocalBenchmarkTask(
 
     def get_button(self):
         button = SlidingButton(
-            self.default_zero_env_path + "/button",
-            name="button",
+            self.default_zero_env_path + "/sliding_button",
             translation=None,
             orientation=None,
         )
         self._sim_config.apply_articulation_settings(
-            "button",
+            "sliding_button",
             get_prim_at_path(button.prim_path),
-            self._sim_config.parse_actor_config("button"),
+            self._sim_config.parse_actor_config("sliding_button"),
         )
 
     def get_button_view(self):
         button_view = SlidingButtonView(
-            prim_paths_expr="/World/envs/.*/button", name="button_view"
+            prim_paths_expr="/World/envs/.*/sliding_button", name="button_view"
         )
         return button_view
 
@@ -407,7 +407,7 @@ class LocalBenchmarkTask(
         )  # NB: if clone then returns a clone of the internal buffer
         print("button pos", self.button_pos)
         self.button_pos -= self._env_pos
-        self.button_z_pos = self.button_pos[2]
+        self.button_z_pos = self.button_pos[:, 2]
         print("button z pos: ", self.button_z_pos)
 
         self.button_velocities = self._buttons._cylinders.get_velocities(clone=False)
@@ -419,7 +419,7 @@ class LocalBenchmarkTask(
         # populate observation buffer
         self.obs_buf[
             :, self.obs_buf_offset + 0 : self.obs_buf_offset + 1
-        ] = self.button_z_pos
+        ] = self.button_z_pos.reshape((2, 1))
         self.obs_buf[
             :, self.obs_buf_offset + 1 : self.obs_buf_offset + 4
         ] = self.button_linvel
@@ -498,12 +498,15 @@ class LocalBenchmarkTask(
         )
         self.obs_buf[
             :,
-            self.obs_buf_offsetGetName
+            self.obs_buf_offset
             + self.num_finger_dofs : self.obs_buf_offset
             + 2 * self.num_finger_dofs,
         ] = (
             self.vel_obs_scale * self.finger_dof_vel
         )
+        print(self.obs_buf.size())
+        print(self.obs_buf_offset
+            + 3 * self.num_finger_dofs)
         self.obs_buf[
             :,
             self.obs_buf_offset
@@ -519,7 +522,7 @@ class LocalBenchmarkTask(
 
     def get_tactile_observations(self):
         """Gets tacile/contact-related data."""
-
+        #TODO: deal with None
         # net contact forces
         net_contact_vec = self._shadow_fingers._tips.get_net_contact_forces(clone=False)
         net_contact_vec *= self.contact_obs_scale
