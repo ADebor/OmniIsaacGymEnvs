@@ -26,7 +26,7 @@ class ShadowFingerView(ArticulationView):
             track_contact_forces=track_contact_forces,
             prepare_contact_sensors=prepare_contact_sensors,
         )
-       
+
     @property
     def actuated_dof_indices(self):
         return self._actuated_dof_indices
@@ -34,16 +34,14 @@ class ShadowFingerView(ArticulationView):
     def initialize(self, physics_sim_view):
         super().initialize(physics_sim_view)
         self.actuated_joint_names = [
-            "robot0_FFJ3",
-            "robot0_FFJ2",
-            "robot0_FFJ1",
+            "robot0_MFJ3",
+            "robot0_MFJ2",
+            "robot0_MFJ1",
         ]
         self._actuated_dof_indices = list()
         for joint_name in self.actuated_joint_names:
             self._actuated_dof_indices.append(self.get_dof_index(joint_name))
         self._actuated_dof_indices.sort()
-
-        print("number of fixed tendons: ", self.num_fixed_tendons)
 
         limit_stiffness = torch.tensor(
             [30.0] * self.num_fixed_tendons, device=self._device
