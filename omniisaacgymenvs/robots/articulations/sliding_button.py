@@ -26,7 +26,7 @@ class SlidingButton(Robot):
         add_reference_to_stage(self._usd_path, prim_path)
 
         self._position = (
-            torch.tensor([0.0, 0.0, 0.4]) if translation is None else translation
+            torch.tensor([-0.01, -0.45, 0.75]) if translation is None else translation
         )
         self._orientation = (
             torch.tensor([0.1, 0.0, 0.0, 0.0]) if orientation is None else orientation
