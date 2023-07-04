@@ -8,6 +8,7 @@ from omniisaacgymenvs.tasks.utils.usd_utils import set_drive
 from pxr import PhysxSchema
 import os
 
+
 class ShadowFinger(Robot):
     def __init__(
         self,
@@ -16,15 +17,13 @@ class ShadowFinger(Robot):
         translation: Optional[torch.tensor] = None,
         orientation: Optional[torch.tensor] = None,
     ) -> None:
-            
         self._name = name
 
-        assets_root_path = os.path.dirname(os.path.realpath(__file__)) + "/../.." + "/assets"
-        self._usd_path = (
-            assets_root_path
-            + "/Robots/shadow_finger_instanceable.usd"
+        assets_root_path = (
+            os.path.dirname(os.path.realpath(__file__)) + "/../.." + "/assets"
         )
-        
+        self._usd_path = assets_root_path + "/Robots/shadow_finger_instanceable.usd"
+
         self._position = (
             torch.tensor([0.0, 0.0, 0.5]) if translation is None else translation
         )
@@ -47,18 +46,21 @@ class ShadowFinger(Robot):
                 rb.GetDisableGravityAttr().Set(True)
                 rb.GetRetainAccelerationsAttr().Set(True)
 
-    def set_motor_control_mode(self, stage, shadow_hand_path):
+    def set_motor_control_mode(self, stage, shadow_finger_path):
         joints_config = {
-            "robot0_FFJ3": {"stiffness": 0., "damping": 0., "max_force": 0.9},
-            "robot0_FFJ2": {"stiffness": 0., "damping": 0., "max_force": 0.9},
-            "robot0_FFJ1": {"stiffness": 0., "damping": 0., "max_force": 0.7245},
+            "robot0_WRJ1": {"stiffness": 0.0, "damping": 0.0, "max_force": 4.785},
+            "robot0_WRJ0": {"stiffness": 0.0, "damping": 0.0, "max_force": 2.175},
+            
+            "robot0_MFJ3": {"stiffness": 0.0, "damping": 0.0, "max_force": 0.9},
+            "robot0_MFJ2": {"stiffness": 0.0, "damping": 0.0, "max_force": 0.9},
+            "robot0_MFJ1": {"stiffness": 0.0, "damping": 0.0, "max_force": 0.7245},
         }
 
         # position control config:
         # joints_config = {
-        #     "robot0_FFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-        #     "robot0_FFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
-        #     "robot0_FFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
+        #     "robot0_MFJ3": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_MFJ2": {"stiffness": 1, "damping": 0.1, "max_force": 0.9},
+        #     "robot0_MFJ1": {"stiffness": 1, "damping": 0.1, "max_force": 0.7245},
         #                 }
 
         for joint_name, config in joints_config.items():
