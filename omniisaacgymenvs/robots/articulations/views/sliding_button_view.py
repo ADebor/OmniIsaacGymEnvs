@@ -17,7 +17,13 @@ class SlidingButtonView(ArticulationView):
         )
 
         self._cylinders = RigidPrimView(
-            prim_paths_expr="/World/envs/.*/button/button",
+            prim_paths_expr="/World/envs/.*/sliding_button/button",
             name="cylinder_view",
+            reset_xform_properties=False,
+        )
+
+        self._rails = RigidPrimView(
+            prim_paths_expr="/World/envs/.*/sliding_button/rail",
+            name="rail_view",
             reset_xform_properties=False,
         )
