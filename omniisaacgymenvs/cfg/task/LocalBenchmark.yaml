@@ -24,7 +24,7 @@ env:
   # clipActions: 1.0
   
   # custom
-  control_mode: "position"  # can be in ["position", "effort"]
+  # control_mode: "position"  # can be in ["position", "effort"]
 
   useRelativeControl: False
   dofSpeedScale: 20.0
@@ -49,21 +49,23 @@ env:
   forceDecayInterval: 0.08
 
   # reward -> dictionary
-  distRewardScale: -10.0
-  rotRewardScale: 1.0
+  successReward: 100.0
+  failureReward: -2.0
+  # distRewardScale: -10.0
+  # rotRewardScale: 1.0
   rotEps: 0.1
   actionPenaltyScale: -0.0002
-  reachGoalBonus: 250
-  fallDistance: 0.24
+  # reachGoalBonus: 250
+  fallDistance: 0.7499
   throwDistance: 0.24
   fallPenalty: -50.0
   velObsScale: 0.2
-  zPosScale: 2.0    # custom one
-  noFallBonus: 5.0  # custom one
+  # zPosScale: 2.0    # custom one
+  # noFallBonus: 5.0  # custom one
   contactObsScale: 5.0 # custom one
  
-  objectType: "block"
-  observationType: "full" # can be "openai",
+  # objectType: "block"
+  # observationType: "full" # can be "openai",
                                 # "full_no_vel",
                                 # "full",
                                 # "full_state",
@@ -91,7 +93,6 @@ sim:
   use_flatcache: True
   enable_scene_query_support: False
   disable_contact_processing: False
-  # disable_contact_processing: True
 
   # set to True if you use camera sensors in the environment
   enable_cameras: False
@@ -155,6 +156,7 @@ sim:
     # per-body
     density: 567.0
     max_depenetration_velocity: 1000.0
+
   goal_object:
     # -1 to use default values
     override_usd_defaults: False
@@ -221,7 +223,7 @@ domain_randomization:
             distribution: "uniform"
             distribution_parameters: [0.5, 1.5]
     articulation_views:
-      shadow_hand_view:
+      shadow_finger_view:
         stiffness:
           on_reset:
             operation: "scaling"
