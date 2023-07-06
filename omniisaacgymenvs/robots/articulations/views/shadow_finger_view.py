@@ -34,11 +34,12 @@ class ShadowFingerView(ArticulationView):
     def initialize(self, physics_sim_view):
         super().initialize(physics_sim_view)
         self.actuated_joint_names = [
-            "robot0_MFJ3",
+            # "robot0_MFJ3",
             "robot0_MFJ2",
             "robot0_MFJ1",
         ]
         self._actuated_dof_indices = list()
+
         for joint_name in self.actuated_joint_names:
             self._actuated_dof_indices.append(self.get_dof_index(joint_name))
         self._actuated_dof_indices.sort()

@@ -49,8 +49,7 @@ class ShadowFinger(Robot):
     def set_motor_control_mode(self, stage, shadow_finger_path):
         joints_config = {
             "robot0_WRJ1": {"stiffness": 0.0, "damping": 0.0, "max_force": 4.785},
-            "robot0_WRJ0": {"stiffness": 0.0, "damping": 0.0, "max_force": 2.175},
-            
+            "robot0_WRJ0": {"stiffness": 0.0, "damping": 0.0, "max_force": 2.175},    
             "robot0_MFJ3": {"stiffness": 0.0, "damping": 0.0, "max_force": 0.9},
             "robot0_MFJ2": {"stiffness": 0.0, "damping": 0.0, "max_force": 0.9},
             "robot0_MFJ1": {"stiffness": 0.0, "damping": 0.0, "max_force": 0.7245},

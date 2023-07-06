@@ -80,7 +80,7 @@ class LocalBenchmarkTask(
         )
         self._num_observations = self._num_tactile_observations + self._num_button_observations + self._num_dof_observations + self._num_fingertip_observations
         
-        self._num_actions = 3  # or 1 if phalange not considered?
+        self._num_actions = 2  # or 1 if phalange not considered?
 
         # get cloning params - number of envs and spacing
         self._num_envs = self._task_cfg["env"]["numEnvs"]
