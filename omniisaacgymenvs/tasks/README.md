@@ -24,7 +24,7 @@ The forked repository proposes 4 different types of observations (for the policy
 - "`openai`": fingertip positions (15), object position (3), relative target orientation (4) (and actions taken (20))
 - "`full_no_vel`": fingertip positions (15), dof positions (hand joints angles) (24), object position (3), object orientation (4), target position (3), target orientation (4), relative target orientation (4) (and actions taken (20))
 - "`full`": same as "`full_no_vel`" + hand joints velocities (24), object velocity (3), object angular velocity (3), fingertip orientations (20), fingertip velocities (5 * ( 3 linear + 3 angular ) = 30) 
-- "`full_state`": same as "`full`" + torque sensing data (30)
+- "`full_state`": same as "`full`" + articulation force sensing data (30) (known issue with these sensors)
   
 We add 11 more types that use "intrinsic"[^1] sensing:
 
@@ -40,7 +40,7 @@ We add 11 more types that use "intrinsic"[^1] sensing:
 - "`intrinsic_full_strict_no_proprio`": same as "`intrinsic_full_strict`" - dof positions (24) - dof velocities (24)
 - "`intrinsic_full_state`": same as "`full_state`" + pressure/tactile sensing data added
 - "`intrinsic_full_state_strict`": same as "`intrinsic_full_state`" - fingertip positions (15) - fingertip orientations (20) - fingertip velocities (30)
-- "`intrinsic_full_state_strict_no_proprio`": same as "`intrinsic_full_state_strict`" - dof positions (24) - dof velocities (24) - torque sensing data (30)
+- "`intrinsic_full_state_strict_no_proprio`": same as "`intrinsic_full_state_strict`" - dof positions (24) - dof velocities (24) - articulation force sensing data (30)
 
 We further add a "handicap" feature that mimics arthrosis by (to be defined).
 
