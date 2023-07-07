@@ -169,10 +169,12 @@ class GlobalBenchmarkTask(InHandManipulationBaseTask):
             ]
             + [
                 self.get_obj_lin_vel,
-                self.get_obj_ang_vel,
+                self.get_obj_ang_vel,           
             ]
-            + [self.get_tactile_obs],
-            "intrinsic_full_state": [
+            + [
+                self.get_tactile_obs
+            ],
+           "intrinsic_full_state": [
                 self.get_ft_pos,
                 self.get_dof_pos,
                 self.get_obj_pos,
@@ -268,7 +270,7 @@ class GlobalBenchmarkTask(InHandManipulationBaseTask):
         self._num_actions = 20
         self._num_states = num_states
 
-        self._control_mode = self._task_cfg["env"]["control_mode"]
+        self._control_mode = self._task_cfg["env"]["controlMode"]
         print("selected control mode: ", self._control_mode)
 
         InHandManipulationBaseTask.__init__(self, name=name, env=env)
@@ -277,16 +279,16 @@ class GlobalBenchmarkTask(InHandManipulationBaseTask):
     def get_observations(self):
         self.get_object_goal_observations()
 
-        self.fingertip_pos, self.fingertip_rot = self._hands._fingers.get_world_poses(
+        self.fingertip_pos, self.fingertip_rot = self._shadow_hands._fingers.get_world_poses(
             clone=False
         )
         self.fingertip_pos -= self._env_pos.repeat((1, self.num_fingertips)).reshape(
             self.num_envs * self.num_fingertips, 3
         )
-        self.fingertip_velocities = self._hands._fingers.get_velocities(clone=False)
+        self.fingertip_velocities = self._shadow_hands._fingers.get_velocities(clone=False)
 
-        self.hand_dof_pos = self._hands.get_joint_positions(clone=False)
-        self.hand_dof_vel = self._hands.get_joint_velocities(clone=False)
+        self.hand_dof_pos = self._shadow_hands.get_joint_positions(clone=False)
+        self.hand_dof_vel = self._shadow_hands.get_joint_velocities(clone=False)
 
         if (
             self.obs_type
@@ -299,23 +301,30 @@ class GlobalBenchmarkTask(InHandManipulationBaseTask):
             or self.asymmetric_obs
         ):
             self.vec_sensor_tensor = (
-                self._hands._physics_view.get_force_sensor_forces().reshape(
+                self._shadow_hands._physics_view.get_force_sensor_forces().reshape(
                     self.num_envs, 6 * self.num_fingertips
                 )
             )
 
         self.obs_buf_offset = 0
+
         for obs_getter in self.obs_dict[self.obs_type]:
             obs = obs_getter()
-            self.obs_buf[:, self.obs_buf_offset : len(obs)] = obs
-            self.obs_buf_offset += len(obs)
+            self.obs_buf[:, self.obs_buf_offset : self.obs_buf_offset + obs.size()[1]] = obs
+            self.obs_buf_offset += obs.size()[1]
 
         if self.asymmetric_obs:
             self.get_asymmetric_obs(
                 True
             )  # may be modified to match openai's implementation in the future...
 
-        observations = {self._hands.name: {"obs_buf": self.obs_buf}}
+        self.obs_buf[:, -20:] = self.actions
+
+        observations = {self._shadow_hands.name: {"obs_buf": self.obs_buf}}
+        print("\n")
+        print(self.obs_buf.size()[1])
+        print(self.obs_buf)
+        exit()
         return observations
 
     def get_ft_pos(self):
