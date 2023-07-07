@@ -23,7 +23,7 @@ The forked repository proposes 4 different types of observations (for the policy
 
 - "`openai`": fingertip positions (15), object position (3), relative target orientation (4) (and actions taken (20))
 - "`full_no_vel`": fingertip positions (15), dof positions (hand joints angles) (24), object position (3), object orientation (4), target position (3), target orientation (4), relative target orientation (4) (and actions taken (20))
-- "`full`": same as "`full_no_vel`" + hand joints velocities (24), object velocity (3), object angular velocity (4), fingertip orientations (20), fingertip velocities (5 * ( 3 linear + 3 angular ) = 30) 
+- "`full`": same as "`full_no_vel`" + hand joints velocities (24), object velocity (3), object angular velocity (3), fingertip orientations (20), fingertip velocities (5 * ( 3 linear + 3 angular ) = 30) 
 - "`full_state`": same as "`full`" + torque sensing data (30) (joint torque sensors not working in Isaac sim, still)
   
 We add 11 more types that use "intrinsic"[^1] sensing:
